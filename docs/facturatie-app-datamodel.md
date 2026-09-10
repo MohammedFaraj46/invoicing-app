@@ -52,7 +52,7 @@ erDiagram
         bigint company_id FK
         bigint customer_id FK
         varchar invoice_number "nullable tot verzending"
-        varchar status "CONCEPT/VERZONDEN/BETAALD/VERLOPEN"
+        varchar status "DRAFT/SENT/PAID/OVERDUE"
         date invoice_date "nullable tot verzending"
         date due_date
         int payment_term_days
@@ -85,7 +85,7 @@ erDiagram
         bigint customer_id FK
         bigint original_invoice_id FK
         varchar credit_note_number "nullable tot verzending"
-        varchar status "CONCEPT/VERZONDEN"
+        varchar status "DRAFT/SENT"
         date credit_date "nullable tot verzending"
         numeric subtotal_amount
         numeric vat_amount
@@ -170,8 +170,8 @@ Een factuur. Kent een levenscyclus via `status`. Belangrijk: het definitieve `in
 | id | bigint | PK |
 | company_id | bigint | FK → Company (eigenaar) |
 | customer_id | bigint | FK → Customer |
-| invoice_number | varchar | nullable in CONCEPT; toegekend bij verzending; uniek per company per jaar |
-| status | varchar (enum) | CONCEPT / VERZONDEN / BETAALD / VERLOPEN |
+| invoice_number | varchar | nullable in DRAFT; toegekend bij verzending; uniek per company per jaar |
+| status | varchar (enum) | DRAFT / SENT / PAID / OVERDUE |
 | invoice_date | date | nullable tot verzending |
 | due_date | date | afgeleid van invoice_date + payment_term_days |
 | payment_term_days | int | overgenomen van Company, per factuur aanpasbaar |
@@ -211,8 +211,8 @@ Een creditnota die een bestaande, verzonden factuur (deels) crediteert. Verwijst
 | company_id | bigint | FK → Company (eigenaar) |
 | customer_id | bigint | FK → Customer |
 | original_invoice_id | bigint | FK → Invoice (welke factuur wordt gecrediteerd) |
-| credit_note_number | varchar | nullable in CONCEPT; toegekend bij verzending; eigen reeks |
-| status | varchar (enum) | CONCEPT / VERZONDEN |
+| credit_note_number | varchar | nullable in DRAFT; toegekend bij verzending; eigen reeks |
+| status | varchar (enum) | DRAFT / SENT |
 | credit_date | date | nullable tot verzending |
 | subtotal_amount | numeric(12,2) | snapshot, negatief (creditering) |
 | vat_amount | numeric(12,2) | snapshot, negatief |
@@ -255,8 +255,8 @@ De teller waarmee factuur- en creditnotanummers concurrency-safe worden uitgegev
 
 ## Enums
 
-- **InvoiceStatus:** `CONCEPT`, `VERZONDEN`, `BETAALD`, `VERLOPEN`
-- **CreditNoteStatus:** `CONCEPT`, `VERZONDEN`
+- **InvoiceStatus:** `DRAFT`, `SENT`, `PAID`, `OVERDUE`
+- **CreditNoteStatus:** `DRAFT`, `SENT`
 - **VatType:** `STANDARD` (21%), `REDUCED` (9%), `ZERO` (0%), `REVERSE_CHARGE` (BTW verlegd)
 - **DocumentType:** `INVOICE`, `CREDIT_NOTE`
 
@@ -265,7 +265,7 @@ De teller waarmee factuur- en creditnotanummers concurrency-safe worden uitgegev
 ## Hoe de ontwerpkeuzes in het schema landen
 
 **1. Factuurnummer pas bij verzending, concurrency-safe**
-`invoice_number` en `invoice_date` zijn nullable zolang de factuur CONCEPT is. Bij de overgang naar VERZONDEN vraagt de service een nummer op via de `NUMBER_SEQUENCE`-rij voor (company, INVOICE, jaar): die rij wordt gelockt, `last_value` opgehoogd en het nieuwe nummer teruggegeven — allemaal binnen dezelfde transactie. Twee gelijktijdige verzend-acties kunnen zo nooit hetzelfde nummer krijgen, en een verwijderd concept verbruikt geen nummer.
+`invoice_number` en `invoice_date` zijn nullable zolang de factuur DRAFT is. Bij de overgang naar SENT vraagt de service een nummer op via de `NUMBER_SEQUENCE`-rij voor (company, INVOICE, jaar): die rij wordt gelockt, `last_value` opgehoogd en het nieuwe nummer teruggegeven — allemaal binnen dezelfde transactie. Twee gelijktijdige verzend-acties kunnen zo nooit hetzelfde nummer krijgen, en een verwijderd concept verbruikt geen nummer.
 
 **2. Creditnota gekoppeld aan de originele factuur**
 `CREDIT_NOTE.original_invoice_id` legt de relatie vast. De creditnota heeft een eigen nummerreeks (via `document_type = CREDIT_NOTE` in `NUMBER_SEQUENCE`), een eigen statusflow en een eigen PDF.
@@ -280,7 +280,7 @@ Alle bedragen zijn `numeric` (in Java `BigDecimal`), met vaste precisie en schaa
 Elke domeinentiteit hangt via `company_id` (en Company via `user_id`) aan één gebruiker. Elke query filtert op de eigenaar, zodat gebruiker A nooit bij data van gebruiker B kan.
 
 **6. Onveranderlijkheid na verzending**
-Zodra `status = VERZONDEN`, blokkeert de servicelaag wijzigingen aan de regels en bedragen. De opgeslagen snapshot-totalen ondersteunen dit: ze veranderen niet meer mee.
+Zodra `status = SENT`, blokkeert de servicelaag wijzigingen aan de regels en bedragen. De opgeslagen snapshot-totalen ondersteunen dit: ze veranderen niet meer mee.
 
 ---
 
