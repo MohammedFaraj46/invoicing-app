@@ -1,6 +1,8 @@
 package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.EmailAlreadyUsedException;
+import io.github.mohammedfaraj46.backend.security.UnauthenticatedException;
+import io.github.mohammedfaraj46.backend.service.InvalidCredentialsException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,6 +37,30 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST, "Validation failed");
         problem.setTitle("Validation failed");
         problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    /**
+     * A service asked who is signed in and nobody was. The filter chain normally
+     * stops this earlier, so reaching here means an endpoint is not protected.
+     */
+    @ExceptionHandler(UnauthenticatedException.class)
+    public ProblemDetail handleUnauthenticated(UnauthenticatedException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "Authentication required");
+        problem.setTitle("Unauthorized");
+        return problem;
+    }
+
+    /**
+     * 401 with the same message whichever half was wrong, so the response cannot
+     * be used to discover which email addresses have an account.
+     */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail handleInvalidCredentials(InvalidCredentialsException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        problem.setTitle("Authentication failed");
         return problem;
     }
 

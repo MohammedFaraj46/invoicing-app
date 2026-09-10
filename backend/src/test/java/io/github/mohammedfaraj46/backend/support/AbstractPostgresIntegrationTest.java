@@ -1,6 +1,8 @@
 package io.github.mohammedfaraj46.backend.support;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
@@ -26,5 +28,15 @@ public abstract class AbstractPostgresIntegrationTest {
 
     static {
         POSTGRES.start();
+    }
+
+    /**
+     * A fixed signing key for tests. In production this comes from the JWT_SECRET
+     * environment variable and there is no fallback, so without this the context
+     * would refuse to start.
+     */
+    @DynamicPropertySource
+    static void jwtProperties(DynamicPropertyRegistry registry) {
+        registry.add("app.jwt.secret", () -> "test-secret-that-is-long-enough-for-hs256");
     }
 }
