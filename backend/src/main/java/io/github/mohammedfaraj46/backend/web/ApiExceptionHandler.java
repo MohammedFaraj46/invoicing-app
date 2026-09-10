@@ -2,6 +2,7 @@ package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.EmailAlreadyUsedException;
 import io.github.mohammedfaraj46.backend.security.UnauthenticatedException;
+import io.github.mohammedfaraj46.backend.service.CustomerNotFoundException;
 import io.github.mohammedfaraj46.backend.service.InvalidCredentialsException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,6 +38,18 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST, "Validation failed");
         problem.setTitle("Validation failed");
         problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    /**
+     * 404 both for an id that does not exist and for one owned by another
+     * company, so the response cannot be used to map out which ids are taken.
+     */
+    @ExceptionHandler(CustomerNotFoundException.class)
+    public ProblemDetail handleCustomerNotFound(CustomerNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Customer not found");
         return problem;
     }
 
