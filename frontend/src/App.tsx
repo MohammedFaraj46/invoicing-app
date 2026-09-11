@@ -5,6 +5,9 @@ import { useAuth } from './auth/useAuth'
 import { CustomerFormPage } from './pages/CustomerFormPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { InvoiceDetailPage } from './pages/InvoiceDetailPage'
+import { InvoiceFormPage } from './pages/InvoiceFormPage'
+import { InvoicesPage } from './pages/InvoicesPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 
@@ -82,6 +85,38 @@ export default function App() {
         element={
           <RequireAuth>
             <CustomerFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices"
+        element={
+          <RequireAuth>
+            <InvoicesPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices/new"
+        element={
+          <RequireAuth>
+            <InvoiceFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices/:id"
+        element={
+          <RequireAuth>
+            <InvoiceDetailPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices/:id/edit"
+        element={
+          <RequireAuth>
+            <InvoiceFormPage />
           </RequireAuth>
         }
       />
