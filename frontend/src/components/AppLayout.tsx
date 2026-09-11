@@ -7,6 +7,7 @@ import { useAuth } from '../auth/useAuth'
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/customers', label: 'Klanten', end: false },
+  { to: '/invoices', label: 'Facturen', end: false },
 ]
 
 /**

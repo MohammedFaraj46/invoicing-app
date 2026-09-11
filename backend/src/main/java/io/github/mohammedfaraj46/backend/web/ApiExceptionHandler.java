@@ -4,6 +4,10 @@ import io.github.mohammedfaraj46.backend.service.EmailAlreadyUsedException;
 import io.github.mohammedfaraj46.backend.security.UnauthenticatedException;
 import io.github.mohammedfaraj46.backend.service.CustomerNotFoundException;
 import io.github.mohammedfaraj46.backend.service.InvalidCredentialsException;
+import io.github.mohammedfaraj46.backend.service.InvalidStatusTransitionException;
+import io.github.mohammedfaraj46.backend.service.InvoiceNotEditableException;
+import io.github.mohammedfaraj46.backend.service.InvoiceValidationException;
+import io.github.mohammedfaraj46.backend.service.InvoiceNotFoundException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,6 +54,53 @@ public class ApiExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND, exception.getMessage());
         problem.setTitle("Customer not found");
+        return problem;
+    }
+
+    /**
+     * A domain rule was broken by a payload that bean validation let through —
+     * a VAT type that does not match its rate. Answered in the same 400 shape as
+     * bean validation, so forms can treat both alike.
+     */
+    @ExceptionHandler(InvoiceValidationException.class)
+    public ProblemDetail handleInvoiceValidation(InvoiceValidationException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, "Validation failed");
+        problem.setTitle("Validation failed");
+        problem.setProperty("errors", exception.getFieldErrors());
+        return problem;
+    }
+
+    /** Same reasoning as a missing customer: unknown and not-yours share one 404. */
+    @ExceptionHandler(InvoiceNotFoundException.class)
+    public ProblemDetail handleInvoiceNotFound(InvoiceNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Invoice not found");
+        return problem;
+    }
+
+    /**
+     * 409 rather than 404: the invoice is yours and exists, but its status no
+     * longer allows the change.
+     */
+    @ExceptionHandler(InvoiceNotEditableException.class)
+    public ProblemDetail handleInvoiceNotEditable(InvoiceNotEditableException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Invoice can no longer be changed");
+        return problem;
+    }
+
+    /**
+     * 409: the invoice exists and is yours, but its lifecycle does not allow the
+     * status change that was asked for.
+     */
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ProblemDetail handleInvalidStatusTransition(InvalidStatusTransitionException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Status transition not allowed");
         return problem;
     }
 
