@@ -15,6 +15,8 @@ import io.github.mohammedfaraj46.backend.service.calculation.InvoiceAmounts;
 import io.github.mohammedfaraj46.backend.service.calculation.InvoiceCalculator;
 import io.github.mohammedfaraj46.backend.service.calculation.LineAmounts;
 import io.github.mohammedfaraj46.backend.service.calculation.VatSubtotal;
+import io.github.mohammedfaraj46.backend.service.pdf.InvoicePdfRenderer;
+import io.github.mohammedfaraj46.backend.service.pdf.InvoicePdfViewMapper;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceLineRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceResponse;
@@ -47,6 +49,8 @@ public class InvoiceService {
     private final CompanyRepository companyRepository;
     private final InvoiceCalculator calculator;
     private final DocumentNumberAllocator numberAllocator;
+    private final InvoicePdfViewMapper pdfViewMapper;
+    private final InvoicePdfRenderer pdfRenderer;
     private final CurrentUser currentUser;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
@@ -54,13 +58,21 @@ public class InvoiceService {
                           CompanyRepository companyRepository,
                           InvoiceCalculator calculator,
                           DocumentNumberAllocator numberAllocator,
+                          InvoicePdfViewMapper pdfViewMapper,
+                          InvoicePdfRenderer pdfRenderer,
                           CurrentUser currentUser) {
         this.invoiceRepository = invoiceRepository;
         this.customerRepository = customerRepository;
         this.companyRepository = companyRepository;
         this.calculator = calculator;
         this.numberAllocator = numberAllocator;
+        this.pdfViewMapper = pdfViewMapper;
+        this.pdfRenderer = pdfRenderer;
         this.currentUser = currentUser;
+    }
+
+    /** A rendered invoice, ready to be streamed to the browser. */
+    public record InvoicePdf(String fileName, byte[] content) {
     }
 
     @Transactional
@@ -126,6 +138,25 @@ public class InvoiceService {
         Invoice invoice = requireOwnInvoice(id);
         requireEditable(invoice);
         invoiceRepository.delete(invoice);
+    }
+
+    /**
+     * Renders the invoice as a PDF.
+     *
+     * <p>Read-only and inside a transaction, because the template walks the
+     * lines and the customer. Only invoices that have a number get one: a draft
+     * would produce a document claiming to be an invoice while its amounts can
+     * still change.
+     */
+    @Transactional(readOnly = true)
+    public InvoicePdf generatePdf(Long id) {
+        Invoice invoice = requireOwnInvoice(id);
+        if (invoice.getInvoiceNumber() == null) {
+            throw new InvoicePdfUnavailableException(id);
+        }
+
+        byte[] content = pdfRenderer.render(pdfViewMapper.toView(invoice));
+        return new InvoicePdf("factuur-" + invoice.getInvoiceNumber() + ".pdf", content);
     }
 
     /**

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import type { Invoice } from '../api/invoices'
-import { deleteInvoice, getInvoice, payInvoice, sendInvoice } from '../api/invoices'
+import { deleteInvoice, downloadInvoicePdf, getInvoice, payInvoice, sendInvoice } from '../api/invoices'
 import { AppLayout } from '../components/AppLayout'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormMessage } from '../components/FormMessage'
@@ -27,6 +27,7 @@ export function InvoiceDetailPage() {
   )
   const [pending, setPending] = useState<PendingAction>(null)
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     if ((location.state as LocationState)?.notice) {
@@ -98,6 +99,33 @@ export function InvoiceDetailPage() {
     }
   }
 
+  /**
+   * Fetches the PDF with the session cookie and hands it to the browser as a
+   * download. A plain link would work too, but going through the api client
+   * means a 409 or 404 surfaces as a message instead of a JSON page.
+   */
+  async function handleDownloadPdf() {
+    if (!invoice) return
+    setDownloading(true)
+    setError(null)
+    try {
+      const blob = await downloadInvoicePdf(invoice.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `factuur-${invoice.invoiceNumber ?? invoice.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      // release the blob once the browser has taken it
+      URL.revokeObjectURL(url)
+    } catch (caught) {
+      await handleFailure(caught, 'De PDF kon niet worden gedownload.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   async function confirmDelete() {
     setBusy(true)
     setError(null)
@@ -152,6 +180,12 @@ export function InvoiceDetailPage() {
         </Box>
 
         <HStack gap="3">
+          {/* a PDF exists only once the invoice has a number */}
+          {!isDraft && (
+            <Button variant="outline" onClick={handleDownloadPdf} loading={downloading}>
+              Download PDF
+            </Button>
+          )}
           {/* editing and deleting exist only while the invoice is a draft */}
           {isDraft && (
             <>
