@@ -29,6 +29,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<jjwt.version>0.13.0</jjwt.version>
+		<openhtmltopdf.version>1.1.85</openhtmltopdf.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -54,6 +55,20 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
+		<!-- Invoice PDFs: a Thymeleaf template rendered to PDF. Keeping the
+		     layout in HTML/CSS means the document can be restyled without
+		     touching any Java. io.github.openhtmltopdf is the maintained fork of
+		     the original com.openhtmltopdf. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.github.openhtmltopdf</groupId>
+			<artifactId>openhtmltopdf-pdfbox</artifactId>
+			<version>${openhtmltopdf.version}</version>
 		</dependency>
 
 		<!-- JWT. The gson serializer is used rather than jjwt-jackson, which

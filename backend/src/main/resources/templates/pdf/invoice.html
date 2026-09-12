@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!--
+  Invoice layout. Rendered to PDF by OpenHTMLtoPDF, which parses strict XML:
+  every tag must be closed and entities must be numeric (&#160;, not &nbsp;).
+
+  Deliberately black on white. This is a document a customer receives and may
+  print; the application's dark theme has no place here.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="nl">
+<head>
+    <meta charset="UTF-8" />
+    <title th:text="'Factuur ' + ${invoice.invoiceNumber}">Factuur</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 18mm 18mm 18mm;
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.45;
+            color: #1a1a1a;
+        }
+
+        h1 {
+            font-size: 20pt;
+            margin: 0;
+            letter-spacing: -0.3pt;
+        }
+
+        .muted {
+            color: #666666;
+        }
+
+        .small {
+            font-size: 8.5pt;
+        }
+
+        /* header: sender on the left, document title on the right */
+        .header {
+            width: 100%;
+            border-bottom: 1.5pt solid #1a1a1a;
+            padding-bottom: 8pt;
+            margin-bottom: 18pt;
+        }
+
+        .header td {
+            vertical-align: top;
+        }
+
+        .header .title {
+            text-align: right;
+            font-size: 16pt;
+            font-weight: bold;
+            letter-spacing: 2pt;
+            text-transform: uppercase;
+        }
+
+        .parties {
+            width: 100%;
+            margin-bottom: 18pt;
+        }
+
+        .parties td {
+            vertical-align: top;
+            width: 50%;
+        }
+
+        .label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.8pt;
+            color: #666666;
+            margin-bottom: 3pt;
+        }
+
+        /* invoice number, date, due date */
+        .meta {
+            width: 100%;
+            border: 0.5pt solid #cccccc;
+            border-collapse: collapse;
+            margin-bottom: 18pt;
+        }
+
+        .meta td {
+            border: 0.5pt solid #cccccc;
+            padding: 6pt 8pt;
+            width: 33.33%;
+        }
+
+        .lines {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14pt;
+        }
+
+        .lines th {
+            text-align: left;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.8pt;
+            border-bottom: 1pt solid #1a1a1a;
+            padding: 0 4pt 5pt 4pt;
+        }
+
+        .lines td {
+            padding: 6pt 4pt;
+            border-bottom: 0.5pt solid #e0e0e0;
+            vertical-align: top;
+        }
+
+        .num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* totals sit in the right half, under the line table */
+        .totals {
+            width: 45%;
+            border-collapse: collapse;
+            float: right;
+        }
+
+        .totals td {
+            padding: 4pt 4pt;
+        }
+
+        .totals .grand td {
+            border-top: 1pt solid #1a1a1a;
+            font-weight: bold;
+            font-size: 11pt;
+            padding-top: 6pt;
+        }
+
+        .after-totals {
+            clear: both;
+            padding-top: 10pt;
+        }
+
+        .note {
+            border-left: 2pt solid #1a1a1a;
+            padding: 4pt 0 4pt 8pt;
+            margin-top: 16pt;
+        }
+
+        .footer {
+            margin-top: 28pt;
+            padding-top: 8pt;
+            border-top: 0.5pt solid #cccccc;
+        }
+    </style>
+</head>
+<body>
+
+<table class="header">
+    <tr>
+        <td>
+            <h1 th:text="${invoice.sender.name}">Bedrijfsnaam</h1>
+        </td>
+        <td class="title">Factuur</td>
+    </tr>
+</table>
+
+<table class="parties">
+    <tr>
+        <td>
+            <div class="label">Van</div>
+            <div th:text="${invoice.sender.name}">Bedrijfsnaam</div>
+            <div th:text="${invoice.sender.addressLine}">Straat 1</div>
+            <div>
+                <span th:text="${invoice.sender.postalCode}">1011AB</span>
+                <span th:text="${invoice.sender.city}">Amsterdam</span>
+            </div>
+            <div th:text="${invoice.sender.country}">NL</div>
+        </td>
+        <td>
+            <div class="label">Factuur aan</div>
+            <div th:text="${invoice.recipient.name}">Klantnaam</div>
+            <div th:text="${invoice.recipient.addressLine}">Weg 2</div>
+            <div>
+                <span th:text="${invoice.recipient.postalCode}">3011AA</span>
+                <span th:text="${invoice.recipient.city}">Rotterdam</span>
+            </div>
+            <div th:text="${invoice.recipient.country}">NL</div>
+            <div class="small muted" th:if="${invoice.recipient.vatNumber != null}">
+                BTW-nummer: <span th:text="${invoice.recipient.vatNumber}">NL00B01</span>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<table class="meta">
+    <tr>
+        <td>
+            <div class="label">Factuurnummer</div>
+            <div th:text="${invoice.invoiceNumber}">2026-0001</div>
+        </td>
+        <td>
+            <div class="label">Factuurdatum</div>
+            <div th:text="${invoice.invoiceDate}">11-09-2026</div>
+        </td>
+        <td>
+            <div class="label">Vervaldatum</div>
+            <div th:text="${invoice.dueDate}">11-10-2026</div>
+        </td>
+    </tr>
+</table>
+
+<table class="lines">
+    <thead>
+    <tr>
+        <th>Omschrijving</th>
+        <th class="num">Aantal</th>
+        <th class="num">Stukprijs</th>
+        <th class="num">BTW</th>
+        <th class="num">Bedrag</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="line : ${invoice.lines}">
+        <td>
+            <span th:text="${line.description}">Omschrijving</span>
+            <div class="small muted" th:if="${line.reverseCharge}">BTW verlegd</div>
+        </td>
+        <td class="num" th:text="${line.quantity}">3</td>
+        <td class="num" th:text="'&#8364; ' + ${line.unitPrice}">&#8364; 19,99</td>
+        <td class="num" th:text="${line.vatRate}">21%</td>
+        <td class="num" th:text="'&#8364; ' + ${line.lineNetAmount}">&#8364; 59,97</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="totals">
+    <tr>
+        <td>Subtotaal</td>
+        <td class="num" th:text="'&#8364; ' + ${invoice.subtotal}">&#8364; 559,97</td>
+    </tr>
+    <tr th:each="row : ${invoice.vatRows}">
+        <td class="muted" th:text="${row.label}">BTW 21%</td>
+        <td class="num muted" th:text="'&#8364; ' + ${row.amount}">&#8364; 12,59</td>
+    </tr>
+    <tr class="grand">
+        <td>Totaal</td>
+        <td class="num" th:text="'&#8364; ' + ${invoice.total}">&#8364; 572,56</td>
+    </tr>
+</table>
+
+<div class="after-totals">
+    <div class="small" th:if="${invoice.hasReverseCharge}">
+        BTW verlegd naar de afnemer.
+    </div>
+
+    <div class="note" th:if="${invoice.notes != null and !invoice.notes.isBlank()}">
+        <div class="label">Notities</div>
+        <div th:text="${invoice.notes}">Notitie</div>
+    </div>
+
+    <div class="footer small muted">
+        <span th:text="${invoice.sender.name}">Bedrijfsnaam</span> &#183;
+        KvK <span th:text="${invoice.sender.kvkNumber}">12345678</span> &#183;
+        BTW-nummer <span th:text="${invoice.sender.vatNumber}">NL001234567B01</span>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,12 +1,16 @@
 package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.InvoiceService;
+import io.github.mohammedfaraj46.backend.service.InvoiceService.InvoicePdf;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceResponse;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceSummaryResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -76,6 +80,23 @@ public class InvoiceController {
     @PostMapping("/{id}/pay")
     public InvoiceResponse markPaid(@PathVariable Long id) {
         return invoiceService.markPaid(id);
+    }
+
+    /**
+     * The invoice as a PDF. 409 for a draft, which has no number yet.
+     *
+     * <p>Content-Disposition "attachment" so the browser saves it under the
+     * invoice number rather than showing it under the endpoint's own path.
+     */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> pdf(@PathVariable Long id) {
+        InvoicePdf pdf = invoiceService.generatePdf(id);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(pdf.fileName()).build().toString())
+                .body(pdf.content());
     }
 
     @DeleteMapping("/{id}")

@@ -8,6 +8,7 @@ import io.github.mohammedfaraj46.backend.service.InvalidStatusTransitionExceptio
 import io.github.mohammedfaraj46.backend.service.InvoiceNotEditableException;
 import io.github.mohammedfaraj46.backend.service.InvoiceValidationException;
 import io.github.mohammedfaraj46.backend.service.InvoiceNotFoundException;
+import io.github.mohammedfaraj46.backend.service.InvoicePdfUnavailableException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -101,6 +102,15 @@ public class ApiExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, exception.getMessage());
         problem.setTitle("Status transition not allowed");
+        return problem;
+    }
+
+    /** 409: a draft has no number, so there is no invoice to put in a PDF yet. */
+    @ExceptionHandler(InvoicePdfUnavailableException.class)
+    public ProblemDetail handleInvoicePdfUnavailable(InvoicePdfUnavailableException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("No PDF for a draft");
         return problem;
     }
 

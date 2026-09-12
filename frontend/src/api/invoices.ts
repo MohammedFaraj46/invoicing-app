@@ -1,4 +1,4 @@
-import { request } from './client'
+import { request, requestBlob } from './client'
 
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE'
 
@@ -91,6 +91,11 @@ export function deleteInvoice(id: number): Promise<void> {
 /** DRAFT to SENT: the backend assigns the number and the dates. */
 export function sendInvoice(id: number): Promise<Invoice> {
   return request<Invoice>(`/invoices/${id}/send`, { method: 'POST' })
+}
+
+/** The invoice as a PDF. Only available once the invoice has a number. */
+export function downloadInvoicePdf(id: number): Promise<Blob> {
+  return requestBlob(`/invoices/${id}/pdf`)
 }
 
 /** SENT to PAID. */

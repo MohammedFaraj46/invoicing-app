@@ -90,6 +90,19 @@ async function toApiError(response: Response): Promise<ApiError> {
  * carries the CSRF token in the header the backend expects. Screens call the
  * wrappers in `auth.ts` and never deal with either.
  */
+/**
+ * A GET that yields a file rather than JSON. Shares the cookie handling and the
+ * error shape with {@link request}, so a 409 or 404 still surfaces as an
+ * ApiError with the backend's own message.
+ */
+export async function requestBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include' })
+  if (!response.ok) {
+    throw await toApiError(response)
+  }
+  return response.blob()
+}
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET'
 
