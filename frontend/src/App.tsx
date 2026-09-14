@@ -2,6 +2,8 @@ import { Center, Spinner } from '@chakra-ui/react'
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/useAuth'
+import { CreditNoteDetailPage } from './pages/CreditNoteDetailPage'
+import { CreditNoteFormPage } from './pages/CreditNoteFormPage'
 import { CustomerFormPage } from './pages/CustomerFormPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -117,6 +119,22 @@ export default function App() {
         element={
           <RequireAuth>
             <InvoiceFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/invoices/:invoiceId/credit"
+        element={
+          <RequireAuth>
+            <CreditNoteFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/credit-notes/:id"
+        element={
+          <RequireAuth>
+            <CreditNoteDetailPage />
           </RequireAuth>
         }
       />

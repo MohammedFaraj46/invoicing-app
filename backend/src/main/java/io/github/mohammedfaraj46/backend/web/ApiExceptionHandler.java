@@ -2,6 +2,10 @@ package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.EmailAlreadyUsedException;
 import io.github.mohammedfaraj46.backend.security.UnauthenticatedException;
+import io.github.mohammedfaraj46.backend.service.CreditNoteNotEditableException;
+import io.github.mohammedfaraj46.backend.service.CreditNoteNotFoundException;
+import io.github.mohammedfaraj46.backend.service.CreditNotePdfUnavailableException;
+import io.github.mohammedfaraj46.backend.service.CreditNoteStatusTransitionException;
 import io.github.mohammedfaraj46.backend.service.CustomerNotFoundException;
 import io.github.mohammedfaraj46.backend.service.InvalidCredentialsException;
 import io.github.mohammedfaraj46.backend.service.InvalidStatusTransitionException;
@@ -108,6 +112,33 @@ public class ApiExceptionHandler {
     /** 409: a draft has no number, so there is no invoice to put in a PDF yet. */
     @ExceptionHandler(InvoicePdfUnavailableException.class)
     public ProblemDetail handleInvoicePdfUnavailable(InvoicePdfUnavailableException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("No PDF for a draft");
+        return problem;
+    }
+
+    /** Unknown and not-yours share one 404, as with invoices and customers. */
+    @ExceptionHandler(CreditNoteNotFoundException.class)
+    public ProblemDetail handleCreditNoteNotFound(CreditNoteNotFoundException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND, exception.getMessage());
+        problem.setTitle("Credit note not found");
+        return problem;
+    }
+
+    /** 409: the credit note is yours, its status simply forbids the change. */
+    @ExceptionHandler({CreditNoteNotEditableException.class, CreditNoteStatusTransitionException.class})
+    public ProblemDetail handleCreditNoteConflict(RuntimeException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Credit note can no longer be changed");
+        return problem;
+    }
+
+    /** 409: a draft credit note has no number, so there is nothing to put in a PDF. */
+    @ExceptionHandler(CreditNotePdfUnavailableException.class)
+    public ProblemDetail handleCreditNotePdfUnavailable(CreditNotePdfUnavailableException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, exception.getMessage());
         problem.setTitle("No PDF for a draft");

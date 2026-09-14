@@ -15,7 +15,7 @@ import io.github.mohammedfaraj46.backend.service.calculation.InvoiceAmounts;
 import io.github.mohammedfaraj46.backend.service.calculation.InvoiceCalculator;
 import io.github.mohammedfaraj46.backend.service.calculation.LineAmounts;
 import io.github.mohammedfaraj46.backend.service.calculation.VatSubtotal;
-import io.github.mohammedfaraj46.backend.service.pdf.InvoicePdfRenderer;
+import io.github.mohammedfaraj46.backend.service.pdf.DocumentPdfRenderer;
 import io.github.mohammedfaraj46.backend.service.pdf.InvoicePdfViewMapper;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceLineRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceRequest;
@@ -50,7 +50,7 @@ public class InvoiceService {
     private final InvoiceCalculator calculator;
     private final DocumentNumberAllocator numberAllocator;
     private final InvoicePdfViewMapper pdfViewMapper;
-    private final InvoicePdfRenderer pdfRenderer;
+    private final DocumentPdfRenderer pdfRenderer;
     private final CurrentUser currentUser;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
@@ -59,7 +59,7 @@ public class InvoiceService {
                           InvoiceCalculator calculator,
                           DocumentNumberAllocator numberAllocator,
                           InvoicePdfViewMapper pdfViewMapper,
-                          InvoicePdfRenderer pdfRenderer,
+                          DocumentPdfRenderer pdfRenderer,
                           CurrentUser currentUser) {
         this.invoiceRepository = invoiceRepository;
         this.customerRepository = customerRepository;
@@ -155,7 +155,7 @@ public class InvoiceService {
             throw new InvoicePdfUnavailableException(id);
         }
 
-        byte[] content = pdfRenderer.render(pdfViewMapper.toView(invoice));
+        byte[] content = pdfRenderer.render("pdf/invoice", "invoice", pdfViewMapper.toView(invoice));
         return new InvoicePdf("factuur-" + invoice.getInvoiceNumber() + ".pdf", content);
     }
 
