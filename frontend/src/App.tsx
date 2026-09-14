@@ -2,8 +2,10 @@ import { Center, Spinner } from '@chakra-ui/react'
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/useAuth'
+import { CompanyFormPage } from './pages/CompanyFormPage'
 import { CreditNoteDetailPage } from './pages/CreditNoteDetailPage'
 import { CreditNoteFormPage } from './pages/CreditNoteFormPage'
+import { CustomerDetailPage } from './pages/CustomerDetailPage'
 import { CustomerFormPage } from './pages/CustomerFormPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -67,6 +69,14 @@ export default function App() {
         }
       />
       <Route
+        path="/company/edit"
+        element={
+          <RequireAuth>
+            <CompanyFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/customers"
         element={
           <RequireAuth>
@@ -79,6 +89,14 @@ export default function App() {
         element={
           <RequireAuth>
             <CustomerFormPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/customers/:id"
+        element={
+          <RequireAuth>
+            <CustomerDetailPage />
           </RequireAuth>
         }
       />

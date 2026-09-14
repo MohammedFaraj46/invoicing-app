@@ -21,7 +21,9 @@ public record CreditNoteRequest(
         String reason,
 
         @NotEmpty(message = "at least one line is required")
-        @Valid
-        List<CreditNoteLineRequest> lines
+        // the annotation goes on the type argument, not the list: Hibernate
+        // Validator deprecated the container form and warns about it on every
+        // request that carries lines
+        List<@Valid CreditNoteLineRequest> lines
 ) {
 }

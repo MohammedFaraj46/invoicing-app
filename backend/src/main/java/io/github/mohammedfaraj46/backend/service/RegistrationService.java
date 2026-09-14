@@ -7,7 +7,8 @@ import io.github.mohammedfaraj46.backend.repository.CompanyRepository;
 import io.github.mohammedfaraj46.backend.web.dto.CompanyRegistration;
 import io.github.mohammedfaraj46.backend.web.dto.RegisterRequest;
 import io.github.mohammedfaraj46.backend.web.dto.RegisterResponse;
-import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class RegistrationService {
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
     /** Fallback payment term for a fresh company, in days. */
     private static final int DEFAULT_PAYMENT_TERM_DAYS = 30;
@@ -38,9 +41,14 @@ public class RegistrationService {
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
-        String email = normaliseEmail(request.email());
+        // already stripped and lower-cased by the request record, so the address
+        // checked for uniqueness is exactly the one that gets stored
+        String email = request.email();
 
         if (appUserRepository.existsByEmail(email)) {
+            // the address is the whole point of the event, and it is one the
+            // caller already knows; the password never appears in a log line
+            log.info("Registration refused: email already in use ({})", email);
             throw new EmailAlreadyUsedException(email);
         }
 
@@ -64,15 +72,11 @@ public class RegistrationService {
         // keep the in-memory graph consistent with what was just persisted
         user.setCompany(company);
 
+        // ids rather than names: enough to follow the account through the other
+        // log lines, without copying personal data into every one of them
+        log.info("Registered user {} with company {}", user.getId(), company.getId());
+
         return new RegisterResponse(user.getId(), user.getEmail(),
                 company.getId(), company.getName());
-    }
-
-    /**
-     * Lower-cases and trims, so Foo@Example.nl and foo@example.nl cannot both be
-     * registered. The uniqueness check and the stored value use the same form.
-     */
-    private static String normaliseEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

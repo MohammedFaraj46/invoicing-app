@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.data.domain.Sort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class CreditNoteService {
+
+    private static final Logger log = LoggerFactory.getLogger(CreditNoteService.class);
 
     private static final Sort NEWEST_FIRST =
             Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"));
@@ -110,8 +114,13 @@ public class CreditNoteService {
         creditNote.setReason(request.reason());
 
         applyLinesAndAmounts(creditNote, requested, invoiceLines);
+        CreditNote saved = creditNoteRepository.save(creditNote);
 
-        return toResponse(creditNoteRepository.save(creditNote));
+        // crediting is money going back, so every one of them is worth a line
+        log.info("Created credit note {} against invoice {} for {}",
+                saved.getId(), invoice.getId(), saved.getTotalAmount());
+
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -184,6 +193,8 @@ public class CreditNoteService {
         creditNote.setCreditNoteNumber(number);
         creditNote.setCreditDate(today);
         creditNote.setStatus(CreditNoteStatus.SENT);
+        log.info("Sent credit note {} as {} against invoice {}, {}", creditNote.getId(), number,
+                creditNote.getOriginalInvoice().getId(), creditNote.getTotalAmount());
 
         return toResponse(creditNote);
     }
@@ -200,6 +211,7 @@ public class CreditNoteService {
             throw new CreditNoteNotEditableException(id, creditNote.getStatus());
         }
         creditNoteRepository.delete(creditNote);
+        log.info("Deleted draft credit note {} of company {}", id, currentUser.companyId());
     }
 
     @Transactional(readOnly = true)

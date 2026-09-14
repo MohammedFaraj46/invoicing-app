@@ -9,6 +9,11 @@ import jakarta.validation.constraints.Size;
 /**
  * Payload for POST /api/auth/register: the login account plus the company
  * profile that belongs to it. Both are created in one transaction.
+ *
+ * <p>The email is normalised here rather than in the service, so the address
+ * that is checked for uniqueness, the one that is stored, and the one bean
+ * validation judges are all the same string. The password is left exactly as
+ * typed: spaces in it are the visitor's business.
  */
 public record RegisterRequest(
 
@@ -18,11 +23,15 @@ public record RegisterRequest(
         String email,
 
         @NotBlank(message = "password is required")
-        @Size(min = 8, max = 100, message = "password must be at least 8 characters")
+        @Size(min = 8, max = 100, message = "password must be between 8 and 100 characters")
         String password,
 
         @NotNull(message = "company is required")
         @Valid
         CompanyRegistration company
 ) {
+
+    public RegisterRequest {
+        email = Fields.email(email);
+    }
 }

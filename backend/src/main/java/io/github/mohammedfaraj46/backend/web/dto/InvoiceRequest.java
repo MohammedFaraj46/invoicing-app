@@ -29,7 +29,9 @@ public record InvoiceRequest(
         String notes,
 
         @NotEmpty(message = "at least one line is required")
-        @Valid
-        List<InvoiceLineRequest> lines
+        // the annotation goes on the type argument, not the list: Hibernate
+        // Validator deprecated the container form and warns about it on every
+        // request that carries lines
+        List<@Valid InvoiceLineRequest> lines
 ) {
 }

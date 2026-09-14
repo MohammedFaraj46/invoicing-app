@@ -3,6 +3,8 @@ package io.github.mohammedfaraj46.backend.service;
 import io.github.mohammedfaraj46.backend.security.AppUserDetailsService;
 import io.github.mohammedfaraj46.backend.security.AppUserPrincipal;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AuthenticationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthenticationService.class);
 
     /**
      * A real BCrypt hash of a value nobody knows. When the email is unknown we
@@ -45,12 +49,19 @@ public class AuthenticationService {
             principal = userDetailsService.loadUserByUsername(normalisedEmail);
         } catch (UsernameNotFoundException exception) {
             passwordEncoder.matches(rawPassword, DUMMY_HASH);
+            // WARN, and with the address: a run of these on one address is what a
+            // brute-force attempt looks like from here. The response stays vague
+            // on purpose, but the log may say which half failed.
+            log.warn("Failed login for unknown email {}", normalisedEmail);
             throw new InvalidCredentialsException();
         }
 
         if (!passwordEncoder.matches(rawPassword, principal.getPassword())) {
+            log.warn("Failed login for user {}: wrong password", principal.getId());
             throw new InvalidCredentialsException();
         }
+
+        log.info("User {} signed in", principal.getId());
         return principal;
     }
 }

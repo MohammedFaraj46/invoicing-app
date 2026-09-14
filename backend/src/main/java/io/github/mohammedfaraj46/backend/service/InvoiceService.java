@@ -17,6 +17,7 @@ import io.github.mohammedfaraj46.backend.service.calculation.LineAmounts;
 import io.github.mohammedfaraj46.backend.service.calculation.VatSubtotal;
 import io.github.mohammedfaraj46.backend.service.pdf.DocumentPdfRenderer;
 import io.github.mohammedfaraj46.backend.service.pdf.InvoicePdfViewMapper;
+import io.github.mohammedfaraj46.backend.web.dto.CustomerInvoicesResponse;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceLineRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceResponse;
@@ -25,6 +26,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class InvoiceService {
+
+    private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
 
     /** Newest first; drafts have no number or date yet, so creation order it is. */
     private static final Sort NEWEST_FIRST =
@@ -104,6 +109,32 @@ public class InvoiceService {
                 .toList();
     }
 
+    /**
+     * The invoices of one customer, plus the two figures that describe them.
+     *
+     * <p>The customer is checked for ownership first, so a customer of another
+     * company answers 404 here just like an unknown one — an empty list would
+     * instead quietly tell the caller that the id exists but is bare.
+     */
+    @Transactional(readOnly = true)
+    public CustomerInvoicesResponse findAllForCustomer(Long customerId) {
+        Long companyId = currentUser.companyId();
+        requireOwnCustomer(customerId);
+
+        List<InvoiceSummaryResponse> invoices = invoiceRepository
+                .findAllByCompanyIdAndCustomerId(companyId, customerId, NEWEST_FIRST)
+                .stream()
+                .map(InvoiceSummaryResponse::from)
+                .toList();
+
+        return new CustomerInvoicesResponse(
+                InvoiceCalculator.toMoney(invoiceRepository.sumTotalAmountByCustomerExcludingStatus(
+                        companyId, customerId, InvoiceStatus.DRAFT)),
+                InvoiceCalculator.toMoney(invoiceRepository.sumTotalAmountByCustomerAndStatus(
+                        companyId, customerId, InvoiceStatus.SENT)),
+                invoices);
+    }
+
     @Transactional(readOnly = true)
     public InvoiceResponse findById(Long id) {
         return toResponse(requireOwnInvoice(id));
@@ -138,6 +169,7 @@ public class InvoiceService {
         Invoice invoice = requireOwnInvoice(id);
         requireEditable(invoice);
         invoiceRepository.delete(invoice);
+        log.info("Deleted draft invoice {} of company {}", id, currentUser.companyId());
     }
 
     /**
@@ -173,6 +205,8 @@ public class InvoiceService {
 
         invoice.setPaidAt(OffsetDateTime.now());
         invoice.setStatus(InvoiceStatus.PAID);
+        log.info("Invoice {} ({}) marked paid, {} {}", invoice.getId(), invoice.getInvoiceNumber(),
+                invoice.getTotalAmount(), invoice.getCurrency());
 
         return toResponse(invoice);
     }
@@ -206,6 +240,9 @@ public class InvoiceService {
         invoice.setDueDate(today.plusDays(invoice.getPaymentTermDays()));
         invoice.setSentAt(OffsetDateTime.now());
         invoice.setStatus(InvoiceStatus.SENT);
+        // the number is the thing you look up later, so it belongs in the line
+        log.info("Sent invoice {} as {} for company {}, {} {}", invoice.getId(), number,
+                currentUser.companyId(), invoice.getTotalAmount(), invoice.getCurrency());
 
         return toResponse(invoice);
     }
@@ -294,6 +331,13 @@ public class InvoiceService {
      * be hung on someone else's customer. Same ownership filter as
      * {@code existsByIdAndCompanyId}, but it hands back the entity we need.
      */
+    /** The same ownership question as {@link #ownCustomer}, without loading the row. */
+    private void requireOwnCustomer(Long customerId) {
+        if (!customerRepository.existsByIdAndCompanyId(customerId, currentUser.companyId())) {
+            throw new CustomerNotFoundException(customerId);
+        }
+    }
+
     private Customer ownCustomer(Long customerId) {
         return customerRepository.findByIdAndCompanyId(customerId, currentUser.companyId())
                 .orElseThrow(() -> new CustomerNotFoundException(customerId));

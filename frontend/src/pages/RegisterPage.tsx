@@ -9,6 +9,16 @@ import { FormMessage } from '../components/FormMessage'
 import { Stepper } from '../components/Stepper'
 import { TextField } from '../components/TextField'
 import { useAuth } from '../auth/useAuth'
+import type { Errors } from '../lib/validation'
+import {
+  LIMITS,
+  PASSWORD_MIN_LENGTH,
+  checkCountry,
+  checkEmail,
+  checkPassword,
+  checkRequiredText,
+  collect,
+} from '../lib/validation'
 
 const STEPS = ['Account', 'Bedrijf', 'Controleren']
 
@@ -21,8 +31,6 @@ const EMPTY_COMPANY: CompanyDetails = {
   city: '',
   country: 'NL',
 }
-
-type Errors = Record<string, string>
 
 export function RegisterPage() {
   const { register } = useAuth()
@@ -52,31 +60,27 @@ export function RegisterPage() {
 
   /** Local checks, so a step is only left once it is filled in sensibly. */
   function validateAccount(): Errors {
-    const found: Errors = {}
-    if (!email.trim()) found.email = 'E-mailadres is verplicht'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) found.email = 'Vul een geldig e-mailadres in'
-    if (!password) found.password = 'Wachtwoord is verplicht'
-    else if (password.length < 8) found.password = 'Minimaal 8 tekens'
-    return found
+    return collect([
+      ['email', checkEmail(email)],
+      ['password', checkPassword(password)],
+    ])
   }
 
+  /**
+   * The keys match the backend's nested field paths ("company.name"), so a 400
+   * from the server lands on the same inputs these messages do.
+   */
   function validateCompany(): Errors {
-    const found: Errors = {}
-    const required: Array<[keyof CompanyDetails, string]> = [
-      ['name', 'Bedrijfsnaam is verplicht'],
-      ['kvkNumber', 'KvK-nummer is verplicht'],
-      ['vatNumber', 'BTW-nummer is verplicht'],
-      ['addressLine', 'Adres is verplicht'],
-      ['postalCode', 'Postcode is verplicht'],
-      ['city', 'Plaats is verplicht'],
-    ]
-    for (const [field, message] of required) {
-      if (!company[field].trim()) found[`company.${field}`] = message
-    }
-    if (company.country.trim().length !== 2) {
-      found['company.country'] = 'Gebruik een landcode van 2 letters, bijv. NL'
-    }
-    return found
+    return collect([
+      ['company.name', checkRequiredText(company.name, 'Bedrijfsnaam', LIMITS.name)],
+      // KvK and VAT: required and bounded, no format — see lib/validation.ts
+      ['company.kvkNumber', checkRequiredText(company.kvkNumber, 'KvK-nummer', LIMITS.kvkNumber)],
+      ['company.vatNumber', checkRequiredText(company.vatNumber, 'BTW-nummer', LIMITS.vatNumber)],
+      ['company.addressLine', checkRequiredText(company.addressLine, 'Adres', LIMITS.addressLine)],
+      ['company.postalCode', checkRequiredText(company.postalCode, 'Postcode', LIMITS.postalCode)],
+      ['company.city', checkRequiredText(company.city, 'Plaats', LIMITS.city)],
+      ['company.country', checkCountry(company.country)],
+    ])
   }
 
   function goNext() {
@@ -94,6 +98,15 @@ export function RegisterPage() {
   }
 
   async function handleSubmit() {
+    // both steps again: the visitor can walk back and edit after passing them
+    const found = { ...validateAccount(), ...validateCompany() }
+    if (Object.keys(found).length > 0) {
+      setErrors(found)
+      setFormError('Niet alle gegevens zijn correct ingevuld.')
+      setStep(Object.keys(found).some((key) => !key.startsWith('company.')) ? 0 : 1)
+      return
+    }
+
     setSubmitting(true)
     setFormError(null)
     setErrors({})
@@ -149,6 +162,7 @@ export function RegisterPage() {
             error={errors.email}
             placeholder="jij@bedrijf.nl"
             autoComplete="email"
+            maxLength={LIMITS.email}
           />
           <TextField
             label="Wachtwoord"
@@ -161,9 +175,10 @@ export function RegisterPage() {
             }}
             error={errors.password}
             autoComplete="new-password"
+            maxLength={LIMITS.password}
           />
           <Text fontSize="xs" color="fg.subtle">
-            Minimaal 8 tekens.
+            Minimaal {PASSWORD_MIN_LENGTH} tekens.
           </Text>
         </Stack>
       )}
@@ -176,6 +191,7 @@ export function RegisterPage() {
             value={company.name}
             onChange={(value) => updateCompany('name', value)}
             error={errors['company.name']}
+            maxLength={LIMITS.name}
           />
           <Grid templateColumns={{ base: '1fr', sm: '1fr 1fr' }} gap="4">
             <TextField
@@ -184,7 +200,7 @@ export function RegisterPage() {
               value={company.kvkNumber}
               onChange={(value) => updateCompany('kvkNumber', value)}
               error={errors['company.kvkNumber']}
-              maxLength={20}
+              maxLength={LIMITS.kvkNumber}
             />
             <TextField
               label="BTW-nummer"
@@ -192,7 +208,7 @@ export function RegisterPage() {
               value={company.vatNumber}
               onChange={(value) => updateCompany('vatNumber', value)}
               error={errors['company.vatNumber']}
-              maxLength={20}
+              maxLength={LIMITS.vatNumber}
             />
           </Grid>
           <TextField
@@ -201,6 +217,7 @@ export function RegisterPage() {
             value={company.addressLine}
             onChange={(value) => updateCompany('addressLine', value)}
             error={errors['company.addressLine']}
+            maxLength={LIMITS.addressLine}
           />
           <Grid templateColumns={{ base: '1fr', sm: '1fr 1fr 1fr' }} gap="4">
             <TextField
@@ -209,7 +226,7 @@ export function RegisterPage() {
               value={company.postalCode}
               onChange={(value) => updateCompany('postalCode', value)}
               error={errors['company.postalCode']}
-              maxLength={20}
+              maxLength={LIMITS.postalCode}
             />
             <TextField
               label="Plaats"
@@ -217,6 +234,7 @@ export function RegisterPage() {
               value={company.city}
               onChange={(value) => updateCompany('city', value)}
               error={errors['company.city']}
+              maxLength={LIMITS.city}
             />
             <TextField
               label="Land"
@@ -224,7 +242,7 @@ export function RegisterPage() {
               value={company.country}
               onChange={(value) => updateCompany('country', value.toUpperCase())}
               error={errors['company.country']}
-              maxLength={2}
+              maxLength={LIMITS.country}
             />
           </Grid>
         </Stack>
