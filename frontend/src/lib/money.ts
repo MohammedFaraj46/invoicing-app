@@ -18,10 +18,17 @@ const QUANTITY_UNITS = 1000
 const PRICE_UNITS = 100
 const RATE_UNITS = 100
 
+/**
+ * Amounts arrive from the backend as JSON numbers (Jackson serialises
+ * BigDecimal unquoted) but come out of form fields as strings. Everything that
+ * parses here accepts both rather than trusting one shape.
+ */
+export type Numeric = string | number
+
 export type MoneyLine = {
-  quantity: string
-  unitPrice: string
-  vatRate: string
+  quantity: Numeric
+  unitPrice: Numeric
+  vatRate: Numeric
 }
 
 export type LineTotals = {
@@ -47,10 +54,17 @@ export type InvoiceTotals = {
 
 const EMPTY_LINE: LineTotals = { netCents: 0, vatCents: 0, totalCents: 0 }
 
-/** Parses a typed value into scaled integer units; anything unparseable is 0. */
-function toUnits(value: string, units: number): number {
-  const parsed = Number.parseFloat((value ?? '').replace(',', '.'))
+/** Parses a value into scaled integer units; anything unparseable is 0. */
+function toUnits(value: Numeric, units: number): number {
+  const parsed = toNumber(value)
   return Number.isFinite(parsed) ? Math.round(parsed * units) : 0
+}
+
+/** Accepts a number as-is and a string with either decimal separator. */
+export function toNumber(value: Numeric | null | undefined): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const parsed = Number.parseFloat((value ?? '').replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 /** Half-up division of two integers, for non-negative numerators. */
@@ -103,19 +117,18 @@ export function calculateInvoice(lines: MoneyLine[]): InvoiceTotals {
 const EURO = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' })
 
 export function formatCents(cents: number): string {
-  return EURO.format(cents / 100)
+  // avoid "-0,00" on an empty form
+  return EURO.format(cents === 0 ? 0 : cents / 100)
 }
 
-/** Formats an amount the backend sent as a decimal string. */
-export function formatAmount(amount: string): string {
-  const parsed = Number.parseFloat(amount)
-  return Number.isFinite(parsed) ? EURO.format(parsed) : amount
+/** Formats an amount as the backend sent it, number or string. */
+export function formatAmount(amount: Numeric): string {
+  return EURO.format(toNumber(amount))
 }
 
 /** 21.00 -> "21%", 9.00 -> "9%" */
-export function formatRate(rate: string | number): string {
-  const parsed = typeof rate === 'number' ? rate : Number.parseFloat(rate)
-  if (!Number.isFinite(parsed)) return String(rate)
+export function formatRate(rate: Numeric): string {
+  const parsed = toNumber(rate)
   return `${parsed % 1 === 0 ? parsed.toFixed(0) : parsed.toFixed(2)}%`
 }
 

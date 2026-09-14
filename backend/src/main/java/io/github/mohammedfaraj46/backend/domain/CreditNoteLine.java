@@ -22,6 +22,15 @@ public class CreditNoteLine extends DocumentLine {
     @JoinColumn(name = "credit_note_id", nullable = false)
     private CreditNote creditNote;
 
+    /**
+     * The invoice line this one credits. Without it there is no way to tell how
+     * much of a given line has already been credited across several credit
+     * notes, which is what the over-credit check needs.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "invoice_line_id", nullable = false)
+    private InvoiceLine invoiceLine;
+
     protected CreditNoteLine() {
         // for JPA
     }
@@ -29,6 +38,14 @@ public class CreditNoteLine extends DocumentLine {
     public CreditNoteLine(int position, String description, BigDecimal quantity,
                           BigDecimal unitPrice, BigDecimal vatRate, VatType vatType) {
         super(position, description, quantity, unitPrice, vatRate, vatType);
+    }
+
+    public InvoiceLine getInvoiceLine() {
+        return invoiceLine;
+    }
+
+    public void setInvoiceLine(InvoiceLine invoiceLine) {
+        this.invoiceLine = invoiceLine;
     }
 
     public CreditNote getCreditNote() {

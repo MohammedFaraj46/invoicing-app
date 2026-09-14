@@ -8,28 +8,31 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 /**
- * Renders the invoice template to PDF bytes.
+ * Renders a Thymeleaf template to PDF bytes.
  *
- * <p>Knows nothing about invoices: it takes a view model, fills the template and
- * hands back a document. Restyling the invoice means editing
- * {@code templates/pdf/invoice.html} and nothing here.
+ * <p>Knows nothing about invoices or credit notes: it takes a template name and
+ * a view model. Restyling a document means editing its template under
+ * {@code templates/pdf/} and nothing here.
  */
 @Component
-public class InvoicePdfRenderer {
-
-    private static final String TEMPLATE = "pdf/invoice";
+public class DocumentPdfRenderer {
 
     private final TemplateEngine templateEngine;
 
-    public InvoicePdfRenderer(TemplateEngine templateEngine) {
+    public DocumentPdfRenderer(TemplateEngine templateEngine) {
         this.templateEngine = templateEngine;
     }
 
-    public byte[] render(InvoicePdfView view) {
+    /**
+     * @param templateName  e.g. {@code pdf/invoice}
+     * @param variableName  the name the template refers to the model by
+     * @param model         the already-formatted view model
+     */
+    public byte[] render(String templateName, String variableName, Object model) {
         Context context = new Context();
-        context.setVariable("invoice", view);
+        context.setVariable(variableName, model);
 
-        String html = templateEngine.process(TEMPLATE, context);
+        String html = templateEngine.process(templateName, context);
 
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             PdfRendererBuilder builder = new PdfRendererBuilder();
@@ -41,7 +44,7 @@ public class InvoicePdfRenderer {
             builder.run();
             return output.toByteArray();
         } catch (IOException exception) {
-            throw new IllegalStateException("Could not render the invoice PDF", exception);
+            throw new IllegalStateException("Could not render the PDF for " + templateName, exception);
         }
     }
 }

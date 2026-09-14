@@ -1,7 +1,9 @@
 package io.github.mohammedfaraj46.backend.web;
 
+import io.github.mohammedfaraj46.backend.service.CreditNoteService;
 import io.github.mohammedfaraj46.backend.service.InvoiceService;
 import io.github.mohammedfaraj46.backend.service.InvoiceService.InvoicePdf;
+import io.github.mohammedfaraj46.backend.web.dto.InvoiceCreditStatusResponse;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceRequest;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceResponse;
 import io.github.mohammedfaraj46.backend.web.dto.InvoiceSummaryResponse;
@@ -32,9 +34,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
+    private final CreditNoteService creditNoteService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, CreditNoteService creditNoteService) {
         this.invoiceService = invoiceService;
+        this.creditNoteService = creditNoteService;
     }
 
     /** Creates a DRAFT: no number and no invoice date yet. */
@@ -80,6 +84,16 @@ public class InvoiceController {
     @PostMapping("/{id}/pay")
     public InvoiceResponse markPaid(@PathVariable Long id) {
         return invoiceService.markPaid(id);
+    }
+
+    /**
+     * What is left to credit on this invoice, per line, plus the credit notes
+     * already raised against it. Feeds the credit note form and the credit
+     * section on the invoice detail page.
+     */
+    @GetMapping("/{id}/credit-status")
+    public InvoiceCreditStatusResponse creditStatus(@PathVariable Long id) {
+        return creditNoteService.creditStatusFor(id);
     }
 
     /**

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<!--
+  Credit note layout. Same rules as the invoice template: strict XML, numeric
+  entities, black on white.
+
+  The amounts are already negative in the model, so they print with their minus
+  sign. Nothing here decides the sign.
+-->
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org" lang="nl">
+<head>
+    <meta charset="UTF-8" />
+    <title th:text="'Creditnota ' + ${creditNote.creditNoteNumber}">Creditnota</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 18mm 18mm 18mm;
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.45;
+            color: #1a1a1a;
+        }
+
+        h1 {
+            font-size: 20pt;
+            margin: 0;
+            letter-spacing: -0.3pt;
+        }
+
+        .muted {
+            color: #666666;
+        }
+
+        .small {
+            font-size: 8.5pt;
+        }
+
+        .header {
+            width: 100%;
+            border-bottom: 1.5pt solid #1a1a1a;
+            padding-bottom: 8pt;
+            margin-bottom: 18pt;
+        }
+
+        .header td {
+            vertical-align: top;
+        }
+
+        .header .title {
+            text-align: right;
+            font-size: 16pt;
+            font-weight: bold;
+            letter-spacing: 2pt;
+            text-transform: uppercase;
+        }
+
+        .parties {
+            width: 100%;
+            margin-bottom: 18pt;
+        }
+
+        .parties td {
+            vertical-align: top;
+            width: 50%;
+        }
+
+        .label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.8pt;
+            color: #666666;
+            margin-bottom: 3pt;
+        }
+
+        .meta {
+            width: 100%;
+            border: 0.5pt solid #cccccc;
+            border-collapse: collapse;
+            margin-bottom: 14pt;
+        }
+
+        .meta td {
+            border: 0.5pt solid #cccccc;
+            padding: 6pt 8pt;
+            width: 33.33%;
+        }
+
+        /* the link back to the invoice being corrected */
+        .reference {
+            border: 0.5pt solid #1a1a1a;
+            padding: 6pt 8pt;
+            margin-bottom: 18pt;
+        }
+
+        .lines {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14pt;
+        }
+
+        .lines th {
+            text-align: left;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.8pt;
+            border-bottom: 1pt solid #1a1a1a;
+            padding: 0 4pt 5pt 4pt;
+        }
+
+        .lines td {
+            padding: 6pt 4pt;
+            border-bottom: 0.5pt solid #e0e0e0;
+            vertical-align: top;
+        }
+
+        .num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .totals {
+            width: 45%;
+            border-collapse: collapse;
+            float: right;
+        }
+
+        .totals td {
+            padding: 4pt 4pt;
+        }
+
+        .totals .grand td {
+            border-top: 1pt solid #1a1a1a;
+            font-weight: bold;
+            font-size: 11pt;
+            padding-top: 6pt;
+        }
+
+        .after-totals {
+            clear: both;
+            padding-top: 10pt;
+        }
+
+        .note {
+            border-left: 2pt solid #1a1a1a;
+            padding: 4pt 0 4pt 8pt;
+            margin-top: 16pt;
+        }
+
+        .footer {
+            margin-top: 28pt;
+            padding-top: 8pt;
+            border-top: 0.5pt solid #cccccc;
+        }
+    </style>
+</head>
+<body>
+
+<table class="header">
+    <tr>
+        <td>
+            <h1 th:text="${creditNote.sender.name}">Bedrijfsnaam</h1>
+        </td>
+        <td class="title">Creditnota</td>
+    </tr>
+</table>
+
+<table class="parties">
+    <tr>
+        <td>
+            <div class="label">Van</div>
+            <div th:text="${creditNote.sender.name}">Bedrijfsnaam</div>
+            <div th:text="${creditNote.sender.addressLine}">Straat 1</div>
+            <div>
+                <span th:text="${creditNote.sender.postalCode}">1011AB</span>
+                <span th:text="${creditNote.sender.city}">Amsterdam</span>
+            </div>
+            <div th:text="${creditNote.sender.country}">NL</div>
+        </td>
+        <td>
+            <div class="label">Creditnota aan</div>
+            <div th:text="${creditNote.recipient.name}">Klantnaam</div>
+            <div th:text="${creditNote.recipient.addressLine}">Weg 2</div>
+            <div>
+                <span th:text="${creditNote.recipient.postalCode}">3011AA</span>
+                <span th:text="${creditNote.recipient.city}">Rotterdam</span>
+            </div>
+            <div th:text="${creditNote.recipient.country}">NL</div>
+            <div class="small muted" th:if="${creditNote.recipient.vatNumber != null}">
+                BTW-nummer: <span th:text="${creditNote.recipient.vatNumber}">NL00B01</span>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<table class="meta">
+    <tr>
+        <td>
+            <div class="label">Creditnotanummer</div>
+            <div th:text="${creditNote.creditNoteNumber}">2026-0001</div>
+        </td>
+        <td>
+            <div class="label">Creditdatum</div>
+            <div th:text="${creditNote.creditDate}">12-09-2026</div>
+        </td>
+        <td>
+            <div class="label">Betreft factuur</div>
+            <div th:text="${creditNote.originalInvoiceNumber}">2026-0001</div>
+        </td>
+    </tr>
+</table>
+
+<div class="reference small">
+    Deze creditnota corrigeert factuur
+    <span th:text="${creditNote.originalInvoiceNumber}">2026-0001</span>
+    van <span th:text="${creditNote.originalInvoiceDate}">11-09-2026</span>.
+</div>
+
+<table class="lines">
+    <thead>
+    <tr>
+        <th>Omschrijving</th>
+        <th class="num">Aantal</th>
+        <th class="num">Bedrag</th>
+        <th class="num">BTW</th>
+        <th class="num">Gecrediteerd</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="line : ${creditNote.lines}">
+        <td>
+            <span th:text="${line.description}">Omschrijving</span>
+            <div class="small muted" th:if="${line.reverseCharge}">BTW verlegd</div>
+        </td>
+        <td class="num" th:text="${line.quantity}">1</td>
+        <td class="num" th:text="'&#8364; ' + ${line.unitPrice}">&#8364; 40,00</td>
+        <td class="num" th:text="${line.vatRate}">21%</td>
+        <td class="num" th:text="'&#8364; ' + ${line.lineNetAmount}">&#8364; -40,00</td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="totals">
+    <tr>
+        <td>Subtotaal</td>
+        <td class="num" th:text="'&#8364; ' + ${creditNote.subtotal}">&#8364; -40,00</td>
+    </tr>
+    <tr th:each="row : ${creditNote.vatRows}">
+        <td class="muted" th:text="${row.label}">BTW 21%</td>
+        <td class="num muted" th:text="'&#8364; ' + ${row.amount}">&#8364; -8,40</td>
+    </tr>
+    <tr class="grand">
+        <td>Totaal te crediteren</td>
+        <td class="num" th:text="'&#8364; ' + ${creditNote.total}">&#8364; -48,40</td>
+    </tr>
+</table>
+
+<div class="after-totals">
+    <div class="note" th:if="${creditNote.reason != null and !creditNote.reason.isBlank()}">
+        <div class="label">Reden</div>
+        <div th:text="${creditNote.reason}">Reden van creditering</div>
+    </div>
+
+    <div class="footer small muted">
+        <span th:text="${creditNote.sender.name}">Bedrijfsnaam</span> &#183;
+        KvK <span th:text="${creditNote.sender.kvkNumber}">12345678</span> &#183;
+        BTW-nummer <span th:text="${creditNote.sender.vatNumber}">NL001234567B01</span>
+    </div>
+</div>
+
+</body>
+</html>

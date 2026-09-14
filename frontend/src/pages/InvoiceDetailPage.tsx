@@ -2,13 +2,15 @@ import { Box, Button, Flex, Grid, HStack, Heading, Spinner, Stack, Table, Text }
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
+import type { InvoiceCreditStatus } from '../api/creditNotes'
+import { getInvoiceCreditStatus } from '../api/creditNotes'
 import type { Invoice } from '../api/invoices'
 import { deleteInvoice, downloadInvoicePdf, getInvoice, payInvoice, sendInvoice } from '../api/invoices'
 import { AppLayout } from '../components/AppLayout'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormMessage } from '../components/FormMessage'
 import { StatusBadge } from '../components/StatusBadge'
-import { formatAmount, formatDate, formatRate } from '../lib/money'
+import { formatAmount, formatDate, formatRate, toNumber } from '../lib/money'
 
 type LocationState = { notice?: string } | null
 type PendingAction = 'send' | 'delete' | null
@@ -28,6 +30,7 @@ export function InvoiceDetailPage() {
   const [pending, setPending] = useState<PendingAction>(null)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [creditStatus, setCreditStatus] = useState<InvoiceCreditStatus | null>(null)
 
   useEffect(() => {
     if ((location.state as LocationState)?.notice) {
@@ -39,7 +42,15 @@ export function InvoiceDetailPage() {
     setLoading(true)
     setError(null)
     try {
-      setInvoice(await getInvoice(invoiceId))
+      const loaded = await getInvoice(invoiceId)
+      setInvoice(loaded)
+
+      // only a sent invoice can be credited, so only then is there anything to show
+      if (loaded.status !== 'DRAFT') {
+        setCreditStatus(await getInvoiceCreditStatus(invoiceId).catch(() => null))
+      } else {
+        setCreditStatus(null)
+      }
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.status === 404
@@ -209,6 +220,12 @@ export function InvoiceDetailPage() {
               </Button>
             </>
           )}
+          {/* crediting only makes sense once the invoice has gone out */}
+          {!isDraft && (
+            <Button variant="outline" onClick={() => navigate(`/invoices/${invoice.id}/credit`)}>
+              Creditnota opstellen
+            </Button>
+          )}
           {isSent && (
             <Button colorPalette="brand" onClick={handlePay} loading={busy}>
               Markeer als betaald
@@ -294,6 +311,39 @@ export function InvoiceDetailPage() {
           </Stack>
         </Box>
 
+        {creditStatus && creditStatus.creditNotes.length > 0 && (
+          <Box bg="bg.panel" borderWidth="1px" borderColor="border.muted" rounded="xl" p="6">
+            <Text fontSize="sm" fontWeight="semibold" color="brand.fg" mb="1">
+              Creditnota's
+            </Text>
+            <Text fontSize="xs" color="fg.subtle" mb="4">
+              In totaal {formatAmount(totalCredited(creditStatus))} gecrediteerd op deze factuur.
+            </Text>
+            <Stack gap="2">
+              {creditStatus.creditNotes.map((creditNote) => (
+                <HStack
+                  key={creditNote.id}
+                  justify="space-between"
+                  fontSize="sm"
+                  borderBottomWidth="1px"
+                  borderColor="border.muted"
+                  py="2"
+                  cursor="pointer"
+                  onClick={() => navigate(`/credit-notes/${creditNote.id}`)}
+                >
+                  <HStack gap="3">
+                    <Text>{creditNote.creditNoteNumber ?? 'Concept'}</Text>
+                    <Text fontSize="xs" color="fg.subtle">
+                      {creditNote.status === 'DRAFT' ? 'Concept' : formatDate(creditNote.creditDate)}
+                    </Text>
+                  </HStack>
+                  <Text color="fg.error">{formatAmount(creditNote.totalAmount)}</Text>
+                </HStack>
+              ))}
+            </Stack>
+          </Box>
+        )}
+
         {invoice.notes && (
           <Box bg="bg.panel" borderWidth="1px" borderColor="border.muted" rounded="xl" p="6">
             <Text fontSize="sm" fontWeight="semibold" color="brand.fg" mb="2">
@@ -331,6 +381,15 @@ export function InvoiceDetailPage() {
       </ConfirmDialog>
     </AppLayout>
   )
+}
+
+/** The sum of the credit notes on this invoice, as a negative amount. */
+function totalCredited(status: InvoiceCreditStatus): string {
+  const total = status.creditNotes.reduce(
+    (sum, creditNote) => sum + toNumber(creditNote.totalAmount),
+    0,
+  )
+  return total.toFixed(2)
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
