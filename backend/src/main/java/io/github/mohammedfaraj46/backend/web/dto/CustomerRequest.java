@@ -3,13 +3,14 @@ package io.github.mohammedfaraj46.backend.web.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import java.util.Locale;
 
 /**
  * Payload for creating and updating a customer.
  *
  * <p>{@code country} is optional in the payload and defaults to "NL"; an
- * explicitly blank value is still rejected.
+ * explicitly blank value is still rejected. Text is stripped before validation,
+ * and the VAT number and postal code carry a length but no format — see the
+ * package documentation.
  */
 public record CustomerRequest(
 
@@ -22,7 +23,10 @@ public record CustomerRequest(
         @Size(max = 255, message = "email must be at most 255 characters")
         String email,
 
-        /** Optional: needed for reverse-charge VAT and VIES lookups. */
+        /**
+         * Optional: needed for reverse-charge VAT and VIES lookups. An empty
+         * field arrives as null, not as "". Length only, no pattern.
+         */
         @Size(max = 20, message = "vatNumber must be at most 20 characters")
         String vatNumber,
 
@@ -30,6 +34,7 @@ public record CustomerRequest(
         @Size(max = 255, message = "addressLine must be at most 255 characters")
         String addressLine,
 
+        // length only, no pattern: not country-specific on purpose
         @NotBlank(message = "postalCode is required")
         @Size(max = 20, message = "postalCode must be at most 20 characters")
         String postalCode,
@@ -43,13 +48,13 @@ public record CustomerRequest(
         String country
 ) {
 
-    private static final String DEFAULT_COUNTRY = "NL";
-
     public CustomerRequest {
-        if (country == null) {
-            country = DEFAULT_COUNTRY;
-        } else {
-            country = country.trim().toUpperCase(Locale.ROOT);
-        }
+        name = Fields.text(name);
+        email = Fields.email(email);
+        vatNumber = Fields.optionalText(vatNumber);
+        addressLine = Fields.text(addressLine);
+        postalCode = Fields.text(postalCode);
+        city = Fields.text(city);
+        country = Fields.countryCode(country);
     }
 }

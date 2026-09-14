@@ -44,6 +44,15 @@ public class InvoiceCalculator {
     /** Scale for a VAT percentage, e.g. 21.00. */
     private static final int RATE_SCALE = 2;
 
+    /**
+     * An amount that came out of a database aggregate, brought to the app's
+     * money scale. A sum over no rows is null in SQL rather than zero, and a
+     * screen that shows money should never have to think about that.
+     */
+    public static BigDecimal toMoney(BigDecimal amount) {
+        return amount == null ? ZERO : amount.setScale(MONEY_SCALE, ROUNDING_MODE);
+    }
+
     public InvoiceAmounts calculate(List<CalculationLine> lines) {
         Objects.requireNonNull(lines, "lines is required");
 

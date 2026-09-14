@@ -6,6 +6,7 @@ import io.github.mohammedfaraj46.backend.service.CreditNoteNotEditableException;
 import io.github.mohammedfaraj46.backend.service.CreditNoteNotFoundException;
 import io.github.mohammedfaraj46.backend.service.CreditNotePdfUnavailableException;
 import io.github.mohammedfaraj46.backend.service.CreditNoteStatusTransitionException;
+import io.github.mohammedfaraj46.backend.service.CustomerInUseException;
 import io.github.mohammedfaraj46.backend.service.CustomerNotFoundException;
 import io.github.mohammedfaraj46.backend.service.InvalidCredentialsException;
 import io.github.mohammedfaraj46.backend.service.InvalidStatusTransitionException;
@@ -13,30 +14,64 @@ import io.github.mohammedfaraj46.backend.service.InvoiceNotEditableException;
 import io.github.mohammedfaraj46.backend.service.InvoiceValidationException;
 import io.github.mohammedfaraj46.backend.service.InvoiceNotFoundException;
 import io.github.mohammedfaraj46.backend.service.InvoicePdfUnavailableException;
+import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Turns service and validation failures into consistent HTTP responses.
+ * Turns failures into consistent HTTP responses.
+ *
+ * <p>Every error the API produces is problem+json with the same fields, whether
+ * it comes from a service, from bean validation, or from Spring itself.
+ * Extending {@link ResponseEntityExceptionHandler} is what covers the last
+ * group: a malformed JSON body, an id that is not a number, an unknown path and
+ * a wrong HTTP method used to come back in the default
+ * {@code timestamp/status/error/path} shape, which a client cannot read the same
+ * way as the rest.
+ *
+ * <p>The status codes follow one rule throughout. 400 when the request itself is
+ * wrong, 401 when nobody is signed in, 404 when an id does not resolve within
+ * the signed-in company - whether it is unknown or someone elses - and 409 when
+ * the request is well formed and the data is yours, but its current state
+ * forbids the change.
  */
 @RestControllerAdvice
-public class ApiExceptionHandler {
+public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     /** Unique index on app_user.email, see V1__init.sql. */
     private static final String EMAIL_UNIQUE_CONSTRAINT = "uq_user_email";
+
+    /** SQLSTATE 23505: unique violation. */
+    private static final String SQLSTATE_UNIQUE_VIOLATION = "23505";
+
+    /** SQLSTATE 23503: foreign key violation, a row is still referenced. */
+    private static final String SQLSTATE_FOREIGN_KEY_VIOLATION = "23503";
 
     /**
      * 400 with one entry per rejected field. Nested fields keep their path, so a
      * bad company name shows up as "company.name".
      */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ProblemDetail handleValidationFailure(MethodArgumentNotValidException exception) {
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+
         Map<String, String> errors = new LinkedHashMap<>();
         exception.getBindingResult().getFieldErrors().forEach(error ->
                 errors.putIfAbsent(error.getField(), error.getDefaultMessage()));
@@ -47,7 +82,10 @@ public class ApiExceptionHandler {
                 HttpStatus.BAD_REQUEST, "Validation failed");
         problem.setTitle("Validation failed");
         problem.setProperty("errors", errors);
-        return problem;
+
+        // overridden rather than left to the base class, which produces a detail
+        // string instead of the per-field map the forms put next to their inputs
+        return handleExceptionInternal(exception, problem, headers, HttpStatus.BAD_REQUEST, request);
     }
 
     /**
@@ -59,6 +97,18 @@ public class ApiExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND, exception.getMessage());
         problem.setTitle("Customer not found");
+        return problem;
+    }
+
+    /**
+     * 409 rather than 404: the customer is yours and exists, but invoices still
+     * name it, and an invoice may not lose who it was sent to.
+     */
+    @ExceptionHandler(CustomerInUseException.class)
+    public ProblemDetail handleCustomerInUse(CustomerInUseException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Customer still has invoices");
         return problem;
     }
 
@@ -178,20 +228,79 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Safety net for the race the existsByEmail check cannot close: two
-     * simultaneous registrations for the same address both pass the check and one
-     * of them hits the unique index. Anything else is a real fault, so it is
-     * rethrown and becomes a 500.
+     * The database refused a write that the service had already checked. In
+     * practice that means a race: two registrations for the same address, or a
+     * row deleted just as something started referencing it. The answer in both
+     * cases is that the world moved, which is a 409 - not a 500, and not a stack
+     * trace.
+     *
+     * <p>Recognised by SQLSTATE rather than by message text, so it holds for any
+     * constraint. The message itself never reaches the caller: constraint names
+     * and column values are internals.
+     *
+     * <p>Anything else under this exception type is a genuine bug, a NOT NULL we
+     * forgot say, and is rethrown so it becomes a logged 500.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException exception) {
-        if (!mentionsEmailConstraint(exception)) {
-            throw exception;
+        String sqlState = sqlStateOf(exception);
+
+        if (SQLSTATE_UNIQUE_VIOLATION.equals(sqlState)) {
+            // the one unique index a user can hit on purpose deserves its own wording
+            boolean email = mentionsEmailConstraint(exception);
+            log.warn("Unique constraint rejected a write ({})",
+                    email ? "duplicate email" : "other unique index");
+
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                    email ? "An account with this email already exists"
+                          : "This conflicts with something that already exists");
+            problem.setTitle(email ? "Email already registered" : "Conflict");
+            return problem;
         }
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, "An account with this email already exists");
-        problem.setTitle("Email already registered");
+
+        if (SQLSTATE_FOREIGN_KEY_VIOLATION.equals(sqlState)) {
+            log.warn("Foreign key rejected a write; something still references the row");
+            ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                    "This is still referenced by other data and cannot be changed");
+            problem.setTitle("Still referenced");
+            return problem;
+        }
+
+        throw exception;
+    }
+
+    /**
+     * Last resort. Everything not recognised above is a fault on our side, so it
+     * is logged in full and answered with a body carrying nothing from the
+     * exception - no message, no stack trace, no SQL.
+     *
+     * <p>The reference is the one thing that crosses over: it lets a support
+     * question ("I got error 4f3a9c2e") be matched to the log line that has the
+     * detail.
+     */
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnexpected(Exception exception) {
+        String reference = UUID.randomUUID().toString().substring(0, 8);
+        log.error("Unhandled exception [{}]", reference, exception);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+                "Something went wrong on our side. Reference: " + reference);
+        problem.setTitle("Internal server error");
+        problem.setProperty("reference", reference);
         return problem;
+    }
+
+    /** The SQLSTATE of the underlying database error, if there is one. */
+    private static String sqlStateOf(Throwable throwable) {
+        for (Throwable cause = throwable; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException) {
+                return sqlException.getSQLState();
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return null;
     }
 
     private static boolean mentionsEmailConstraint(Throwable throwable) {

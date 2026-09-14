@@ -1,26 +1,21 @@
-import {
-  Box,
-  Button,
-  Dialog,
-  Flex,
-  HStack,
-  Heading,
-  Portal,
-  Spinner,
-  Table,
-  Text,
-} from '@chakra-ui/react'
+import { Box, Button, Flex, Heading, Spinner, Table, Text } from '@chakra-ui/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Customer } from '../api/customers'
-import { deleteCustomer, listCustomers } from '../api/customers'
+import { listCustomers } from '../api/customers'
 import { ApiError } from '../api/client'
 import { AppLayout } from '../components/AppLayout'
 import { FormMessage } from '../components/FormMessage'
 
-/** Set by the form page after a successful save. */
+/** Set by the form and detail pages after a successful save or delete. */
 type LocationState = { notice?: string } | null
 
+/**
+ * The customer list. A row leads to the customer, where the profile, the
+ * invoices and the edit and delete actions live — the same shape the invoice
+ * list has, and it keeps a whole row clickable instead of carrying buttons that
+ * have to swallow the click.
+ */
 export function CustomersPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -28,11 +23,8 @@ export function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(
-    (location.state as LocationState)?.notice ?? null,
-  )
-  const [pendingDelete, setPendingDelete] = useState<Customer | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  // set once from the message the previous page passed along; nothing here changes it
+  const [notice] = useState<string | null>((location.state as LocationState)?.notice ?? null)
 
   // drop the message from history, so a refresh does not show it again
   useEffect(() => {
@@ -58,25 +50,6 @@ export function CustomersPage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  async function confirmDelete() {
-    if (!pendingDelete) return
-    setDeleting(true)
-    setError(null)
-    try {
-      await deleteCustomer(pendingDelete.id)
-      setNotice(`${pendingDelete.name} is verwijderd.`)
-      setPendingDelete(null)
-      await load()
-    } catch (caught) {
-      setPendingDelete(null)
-      setError(
-        caught instanceof ApiError ? caught.message : 'De klant kon niet worden verwijderd.',
-      )
-    } finally {
-      setDeleting(false)
-    }
-  }
 
   return (
     <AppLayout>
@@ -122,34 +95,18 @@ export function CustomersPage() {
                   <Table.ColumnHeader>Naam</Table.ColumnHeader>
                   <Table.ColumnHeader>E-mailadres</Table.ColumnHeader>
                   <Table.ColumnHeader>Plaats</Table.ColumnHeader>
-                  <Table.ColumnHeader textAlign="end">Acties</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
                 {customers.map((customer) => (
-                  <Table.Row key={customer.id}>
+                  <Table.Row
+                    key={customer.id}
+                    onClick={() => navigate(`/customers/${customer.id}`)}
+                    cursor="pointer"
+                  >
                     <Table.Cell fontWeight="medium">{customer.name}</Table.Cell>
                     <Table.Cell color="fg.muted">{customer.email}</Table.Cell>
                     <Table.Cell color="fg.muted">{customer.city}</Table.Cell>
-                    <Table.Cell textAlign="end">
-                      <HStack gap="2" justify="flex-end">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => navigate(`/customers/${customer.id}/edit`)}
-                        >
-                          Bewerken
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="ghost"
-                          color="fg.error"
-                          onClick={() => setPendingDelete(customer)}
-                        >
-                          Verwijderen
-                        </Button>
-                      </HStack>
-                    </Table.Cell>
                   </Table.Row>
                 ))}
               </Table.Body>
@@ -157,39 +114,6 @@ export function CustomersPage() {
           </Table.ScrollArea>
         )}
       </Box>
-
-      <Dialog.Root
-        open={pendingDelete !== null}
-        onOpenChange={(details) => {
-          if (!details.open) setPendingDelete(null)
-        }}
-        role="alertdialog"
-      >
-        <Portal>
-          <Dialog.Backdrop bg="blackAlpha.700" backdropFilter="blur(2px)" />
-          <Dialog.Positioner>
-            <Dialog.Content bg="bg.panel" borderWidth="1px" borderColor="border.muted">
-              <Dialog.Header>
-                <Dialog.Title>Klant verwijderen?</Dialog.Title>
-              </Dialog.Header>
-              <Dialog.Body>
-                <Text color="fg.muted" fontSize="sm">
-                  Weet je zeker dat je <b>{pendingDelete?.name}</b> wilt verwijderen? Dit kan niet
-                  ongedaan worden gemaakt.
-                </Text>
-              </Dialog.Body>
-              <Dialog.Footer>
-                <Button variant="ghost" onClick={() => setPendingDelete(null)} disabled={deleting}>
-                  Annuleren
-                </Button>
-                <Button colorPalette="red" onClick={confirmDelete} loading={deleting}>
-                  Verwijderen
-                </Button>
-              </Dialog.Footer>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Portal>
-      </Dialog.Root>
     </AppLayout>
   )
 }

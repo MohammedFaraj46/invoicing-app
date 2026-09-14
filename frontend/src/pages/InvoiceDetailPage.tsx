@@ -293,7 +293,6 @@ export function InvoiceDetailPage() {
           borderColor="border.muted"
           rounded="xl"
           p="6"
-          maxW="md"
           ml="auto"
           w="full"
         >

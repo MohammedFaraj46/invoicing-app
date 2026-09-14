@@ -3,9 +3,7 @@ package io.github.mohammedfaraj46.backend.security;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
@@ -30,11 +28,6 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
                 ? "Missing or invalid CSRF token"
                 : "Access denied";
 
-        response.setStatus(HttpStatus.FORBIDDEN.value());
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getWriter().write("""
-                {"type":"about:blank","title":"Forbidden","status":403,"detail":"%s","instance":"%s"}"""
-                .formatted(detail, request.getRequestURI()));
+        ProblemDetailWriter.write(response, request, HttpStatus.FORBIDDEN, "Forbidden", detail);
     }
 }

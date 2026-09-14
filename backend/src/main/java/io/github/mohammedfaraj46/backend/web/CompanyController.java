@@ -2,7 +2,11 @@ package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.CompanyService;
 import io.github.mohammedfaraj46.backend.web.dto.CompanyResponse;
+import io.github.mohammedfaraj46.backend.web.dto.CompanyUpdateRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,5 +31,11 @@ public class CompanyController {
     @GetMapping("/me")
     public CompanyResponse me() {
         return companyService.currentCompany();
+    }
+
+    /** Edits that same company; 400 with field errors when something is missing. */
+    @PutMapping("/me")
+    public CompanyResponse update(@Valid @RequestBody CompanyUpdateRequest request) {
+        return companyService.update(request);
     }
 }

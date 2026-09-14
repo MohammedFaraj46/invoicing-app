@@ -6,17 +6,16 @@ import io.github.mohammedfaraj46.backend.security.JwtCookieAuthenticationFilter;
 import io.github.mohammedfaraj46.backend.security.JwtCookieFactory;
 import io.github.mohammedfaraj46.backend.security.JwtService;
 import io.github.mohammedfaraj46.backend.security.ProblemDetailAccessDeniedHandler;
+import io.github.mohammedfaraj46.backend.security.ProblemDetailAuthenticationEntryPoint;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -78,8 +77,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(handling -> handling
-                        // without this, an unauthenticated call returns 403 instead of 401
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        // without this, an unauthenticated call returns 403 instead of 401;
+                        // problem+json so a 401 reads like every other failure
+                        .authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint())
                         .accessDeniedHandler(new ProblemDetailAccessDeniedHandler())
                 )
                 // before the CSRF check on purpose: reading the login cookie changes

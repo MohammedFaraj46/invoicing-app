@@ -1,6 +1,8 @@
 package io.github.mohammedfaraj46.backend.web;
 
 import io.github.mohammedfaraj46.backend.service.CustomerService;
+import io.github.mohammedfaraj46.backend.service.InvoiceService;
+import io.github.mohammedfaraj46.backend.web.dto.CustomerInvoicesResponse;
 import io.github.mohammedfaraj46.backend.web.dto.CustomerRequest;
 import io.github.mohammedfaraj46.backend.web.dto.CustomerResponse;
 import jakarta.validation.Valid;
@@ -25,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final InvoiceService invoiceService;
 
-    public CustomerController(CustomerService customerService) {
+    public CustomerController(CustomerService customerService, InvoiceService invoiceService) {
         this.customerService = customerService;
+        this.invoiceService = invoiceService;
     }
 
     @PostMapping
@@ -45,6 +49,19 @@ public class CustomerController {
     @GetMapping("/{id}")
     public CustomerResponse findById(@PathVariable Long id) {
         return customerService.findById(id);
+    }
+
+    /**
+     * This customer's invoices, for the customer detail page.
+     *
+     * <p>A nested route rather than a {@code customerId} filter on
+     * /api/invoices: the customer is what is being addressed, so an id from
+     * another company answers 404 the way it does everywhere else. A filter
+     * could only answer with an empty list, which says something different.
+     */
+    @GetMapping("/{id}/invoices")
+    public CustomerInvoicesResponse invoices(@PathVariable Long id) {
+        return invoiceService.findAllForCustomer(id);
     }
 
     @PutMapping("/{id}")

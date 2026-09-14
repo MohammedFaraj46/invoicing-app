@@ -7,6 +7,15 @@ import { ApiError } from '../api/client'
 import { AppLayout } from '../components/AppLayout'
 import { FormMessage } from '../components/FormMessage'
 import { TextField } from '../components/TextField'
+import type { Errors } from '../lib/validation'
+import {
+  LIMITS,
+  checkCountry,
+  checkEmail,
+  checkOptionalText,
+  checkRequiredText,
+  collect,
+} from '../lib/validation'
 
 const EMPTY: CustomerInput = {
   name: '',
@@ -17,8 +26,6 @@ const EMPTY: CustomerInput = {
   city: '',
   country: 'NL',
 }
-
-type Errors = Record<string, string>
 
 /**
  * One form for both creating and editing: the presence of an id in the route
@@ -85,19 +92,15 @@ export function CustomerFormPage() {
 
   /** Local checks first, so an obviously incomplete form never leaves the browser. */
   function validate(): Errors {
-    const found: Errors = {}
-    if (!values.name.trim()) found.name = 'Naam is verplicht'
-    if (!values.email.trim()) found.email = 'E-mailadres is verplicht'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
-      found.email = 'Vul een geldig e-mailadres in'
-    }
-    if (!values.addressLine.trim()) found.addressLine = 'Adres is verplicht'
-    if (!values.postalCode.trim()) found.postalCode = 'Postcode is verplicht'
-    if (!values.city.trim()) found.city = 'Plaats is verplicht'
-    if (values.country.trim().length !== 2) {
-      found.country = 'Gebruik een landcode van 2 letters, bijv. NL'
-    }
-    return found
+    return collect([
+      ['name', checkRequiredText(values.name, 'Naam', LIMITS.name)],
+      ['email', checkEmail(values.email)],
+      ['vatNumber', checkOptionalText(values.vatNumber ?? '', 'BTW-nummer', LIMITS.vatNumber)],
+      ['addressLine', checkRequiredText(values.addressLine, 'Adres', LIMITS.addressLine)],
+      ['postalCode', checkRequiredText(values.postalCode, 'Postcode', LIMITS.postalCode)],
+      ['city', checkRequiredText(values.city, 'Plaats', LIMITS.city)],
+      ['country', checkCountry(values.country)],
+    ])
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -122,7 +125,9 @@ export function CustomerFormPage() {
       } else {
         await createCustomer(payload)
       }
-      navigate('/customers', {
+      // editing starts on the customer, so it ends there; a new one has no page
+      // of its own to return to yet
+      navigate(isEdit ? `/customers/${customerId}` : '/customers', {
         replace: true,
         state: { notice: isEdit ? 'De klant is bijgewerkt.' : 'De klant is toegevoegd.' },
       })
@@ -170,6 +175,7 @@ export function CustomerFormPage() {
                   value={values.name}
                   onChange={(value) => update('name', value)}
                   error={errors.name}
+                  maxLength={LIMITS.name}
                 />
                 <TextField
                   label="E-mailadres"
@@ -179,6 +185,7 @@ export function CustomerFormPage() {
                   onChange={(value) => update('email', value)}
                   error={errors.email}
                   placeholder="klant@bedrijf.nl"
+                  maxLength={LIMITS.email}
                 />
                 <TextField
                   label="BTW-nummer"
@@ -187,7 +194,7 @@ export function CustomerFormPage() {
                   onChange={(value) => update('vatNumber', value)}
                   error={errors.vatNumber}
                   placeholder="Optioneel, nodig voor BTW verlegd"
-                  maxLength={20}
+                  maxLength={LIMITS.vatNumber}
                   required={false}
                 />
                 <TextField
@@ -196,6 +203,7 @@ export function CustomerFormPage() {
                   value={values.addressLine}
                   onChange={(value) => update('addressLine', value)}
                   error={errors.addressLine}
+                  maxLength={LIMITS.addressLine}
                 />
                 <Grid templateColumns={{ base: '1fr', sm: '1fr 1fr 1fr' }} gap="4">
                   <TextField
@@ -204,7 +212,7 @@ export function CustomerFormPage() {
                     value={values.postalCode}
                     onChange={(value) => update('postalCode', value)}
                     error={errors.postalCode}
-                    maxLength={20}
+                    maxLength={LIMITS.postalCode}
                   />
                   <TextField
                     label="Plaats"
@@ -212,6 +220,7 @@ export function CustomerFormPage() {
                     value={values.city}
                     onChange={(value) => update('city', value)}
                     error={errors.city}
+                    maxLength={LIMITS.city}
                   />
                   <TextField
                     label="Land"
@@ -219,12 +228,17 @@ export function CustomerFormPage() {
                     value={values.country}
                     onChange={(value) => update('country', value.toUpperCase())}
                     error={errors.country}
-                    maxLength={2}
+                    maxLength={LIMITS.country}
                   />
                 </Grid>
 
                 <HStack justify="flex-end" gap="3" mt="4">
-                  <Button variant="ghost" onClick={() => navigate('/customers')} disabled={saving}>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => navigate(isEdit ? `/customers/${customerId}` : '/customers')}
+                    disabled={saving}
+                  >
                     Annuleren
                   </Button>
                   <Button type="submit" colorPalette="brand" loading={saving}>
