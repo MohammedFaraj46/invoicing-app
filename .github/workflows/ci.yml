@@ -1,11 +1,18 @@
 name: CI
 
-# Every push to main, and every pull request aimed at it. A pull request is the
-# moment the check matters most: it says whether merging would break main,
-# before it does.
+# Every push to any branch, so a feature branch reports its state while it is
+# still being worked on rather than only once it is proposed for merging.
+#
+# The pull request trigger stays: it is the one that answers the question main
+# actually cares about — whether merging would break it — and it is what a branch
+# protection rule can be hung on. A branch push and a pull request from that same
+# branch will both run; see the note on the concurrency group below.
+#
+# '**' rather than no filter at all: that would also fire on tag pushes, which
+# build nothing new here.
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
 
@@ -16,8 +23,13 @@ permissions:
 
 # A second push to the same branch makes the first run pointless, so cancel it
 # instead of paying for both.
+#
+# Push and pull_request runs are kept in separate groups on purpose. They could
+# be merged — keying on the branch name would make a push cancel the pull
+# request's run — but then the check a merge depends on could be cancelled by an
+# unrelated push, which is a worse failure than paying for one extra run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
