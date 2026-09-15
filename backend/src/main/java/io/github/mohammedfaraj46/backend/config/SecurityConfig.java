@@ -74,6 +74,9 @@ public class SecurityConfig {
                         .permitAll()
                         // so a container error dispatch does not come back as a 401
                         .requestMatchers("/error").permitAll()
+                        // the container health check runs before anything can log
+                        // in; it answers UP or DOWN and nothing else
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(handling -> handling

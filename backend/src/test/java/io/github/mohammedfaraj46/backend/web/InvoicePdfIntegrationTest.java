@@ -16,7 +16,12 @@ import io.github.mohammedfaraj46.backend.support.AbstractPostgresIntegrationTest
 import io.github.mohammedfaraj46.backend.support.HttpTestSupport.Csrf;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.pdmodel.PDResources;
+import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,6 +158,27 @@ class InvoicePdfIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    @DisplayName("the euro sign renders, in a font that travels with the document")
+    void euroSignRendersInAnEmbeddedFont() {
+        long id = createDraft(sessionA, customerA);
+        sendAndGetNumber(sessionA, id);
+
+        byte[] pdf = downloadPdf(sessionA, id).getBody();
+        assertThat(pdf).isNotNull();
+
+        // the character itself, not an approximation of it: a missing glyph
+        // comes out as a box, or as nothing at all
+        assertThat(textOf(pdf)).contains("\u20ac");
+
+        // and it is our own font, embedded, so a reader without DejaVu installed
+        // sees the same document instead of a substituted one. This is what a
+        // bare container would otherwise get wrong.
+        assertThat(embeddedFontNames(pdf))
+                .isNotEmpty()
+                .allSatisfy(name -> assertThat(name).contains("DejaVuSans"));
+    }
+
+    @Test
     @DisplayName("a paid invoice still has a PDF")
     void paidInvoiceYieldsPdf() {
         long id = createDraft(sessionA, customerA);
@@ -237,6 +263,29 @@ class InvoicePdfIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(pdf).isNotNull();
         try (var document = Loader.loadPDF(pdf)) {
             return new PDFTextStripper().getText(document);
+        } catch (IOException exception) {
+            throw new AssertionError("Could not read the generated PDF", exception);
+        }
+    }
+
+    /**
+     * The names of the fonts actually embedded in the document, asserting along
+     * the way that each one is embedded rather than merely referenced. A
+     * subsetted font carries a six-letter tag, so a name reads like
+     * {@code ABCDEF+DejaVuSans}.
+     */
+    private static List<String> embeddedFontNames(byte[] pdf) {
+        try (var document = Loader.loadPDF(pdf)) {
+            List<String> names = new ArrayList<>();
+            PDResources resources = document.getPage(0).getResources();
+            for (COSName fontName : resources.getFontNames()) {
+                PDFont font = resources.getFont(fontName);
+                assertThat(font.isEmbedded())
+                        .as("font %s is embedded", font.getName())
+                        .isTrue();
+                names.add(font.getName());
+            }
+            return names;
         } catch (IOException exception) {
             throw new AssertionError("Could not read the generated PDF", exception);
         }

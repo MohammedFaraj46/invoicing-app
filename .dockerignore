@@ -1,0 +1,47 @@
+# What never needs to reach the Docker daemon.
+#
+# The build context is the repository root, so this file governs the whole tree.
+# Everything here is either rebuilt inside the image anyway, useless to it, or
+# something that must not be copied into an image at all.
+
+# Build output. The image compiles from source; a target/ from the host would be
+# a different platform's classes at best, and would defeat the layer cache at
+# worst.
+target/
+**/target/
+build/
+**/build/
+*.jar
+*.war
+
+# Frontend. It is served separately and has nothing to do with the backend jar.
+# node_modules in particular is tens of thousands of files that would be sent to
+# the daemon on every build for no reason at all.
+node_modules/
+**/node_modules/
+frontend/dist/
+
+# Version control and tooling.
+.git/
+.gitignore
+.gitattributes
+.github/
+.idea/
+.vscode/
+*.iml
+.claude/
+
+# Secrets and local overrides. An .env here would end up in the build context
+# and, one careless COPY later, inside the image.
+.env
+.env.*
+
+# Test and coverage artefacts.
+**/surefire-reports/
+**/failsafe-reports/
+**/jacoco.exec
+
+# Documentation and local noise.
+docs/
+*.md
+*.log

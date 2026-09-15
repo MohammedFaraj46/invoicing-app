@@ -1,3 +1,11 @@
+# Database and backend together.
+#
+#   JWT_SECRET=$(openssl rand -base64 48) docker compose up --build
+#
+# or put JWT_SECRET in a .env file next to this one — compose reads it, and .env
+# is gitignored. There is no default on purpose: a signing key with a fallback
+# is a signing key everybody knows.
+
 services:
   db:
     image: postgres:16
@@ -10,6 +18,39 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # "Running" and "ready to accept connections" are not the same moment:
+    # Postgres starts, initialises its data directory, restarts itself and only
+    # then listens. Without this the backend would race it and Flyway would fail
+    # on the first connection.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice -d invoice"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      # the repository root, so the Dockerfile can reach backend/ and the
+      # .dockerignore at the root governs what is sent
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: invoice-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # "db" is the service name on the compose network — localhost inside this
+      # container is the container itself, not the database
+      DB_URL: jdbc:postgresql://db:5432/invoice
+      DB_USERNAME: invoice
+      DB_PASSWORD: localdev
+      # required, and never baked into the image
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your environment or in a .env file}
+      # false for plain HTTP locally; true once this sits behind HTTPS
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-false}
+    ports:
+      - "8080:8080"
 
 volumes:
   pgdata:
