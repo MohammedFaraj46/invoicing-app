@@ -1,10 +1,16 @@
-# Database and backend together.
+# The whole stack: database, backend, and nginx serving the built frontend.
 #
 #   JWT_SECRET=$(openssl rand -base64 48) docker compose up --build
 #
 # or put JWT_SECRET in a .env file next to this one — compose reads it, and .env
 # is gitignored. There is no default on purpose: a signing key with a fallback
 # is a signing key everybody knows.
+#
+# Then open http://localhost — one port, one origin, everything behind it.
+#
+# This does not replace `npm run dev`. The Vite dev server with its own proxy is
+# still the way to work on the frontend; this is what the result looks like once
+# it is built.
 
 services:
   db:
@@ -49,8 +55,29 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in your environment or in a .env file}
       # false for plain HTTP locally; true once this sits behind HTTPS
       JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:-false}
+    # Kept published even though nginx now reaches the backend over the compose
+    # network, because `npm run dev` proxies to localhost:8080 — closing this
+    # would mean the containerised backend could no longer serve the dev server.
+    # In production this line goes, and the API is reachable through nginx only.
     ports:
       - "8080:8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: invoice-frontend
+    # Not just "depends_on: backend". nginx resolves and proxies per request, so
+    # it would come up fine on its own — but a frontend that answers with 502
+    # for the first forty seconds looks broken to whoever opens it. Waiting for
+    # a healthy backend means the first click already works.
+    depends_on:
+      backend:
+        condition: service_healthy
+    # The single entrance: :80 on the host, 8080 inside because nginx runs
+    # unprivileged. Nothing else needs publishing for the app to be usable.
+    ports:
+      - "80:8080"
 
 volumes:
   pgdata:

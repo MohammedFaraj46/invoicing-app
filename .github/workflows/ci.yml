@@ -83,7 +83,7 @@ jobs:
           retention-days: 7
 
   image:
-    name: Backend image
+    name: Docker images
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -101,3 +101,13 @@ jobs:
       # this workflow.
       - name: Build the backend image
         run: docker build -f backend/Dockerfile -t invoicing-backend:ci .
+
+      # The same check for the frontend, which `docker compose up` needs just as
+      # much: npm ci against the lockfile, tsc, vite build, and the nginx stage
+      # assembling on top of it. A type error or a dependency that no longer
+      # resolves fails here rather than the next time the stack is started.
+      #
+      # Both builds use the repository root as context, so the .dockerignore
+      # there governs what is sent in either case.
+      - name: Build the frontend image
+        run: docker build -f frontend/Dockerfile -t invoicing-frontend:ci .

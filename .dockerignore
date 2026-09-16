@@ -14,9 +14,12 @@ build/
 *.jar
 *.war
 
-# Frontend. It is served separately and has nothing to do with the backend jar.
-# node_modules in particular is tens of thousands of files that would be sent to
-# the daemon on every build for no reason at all.
+# Frontend build artefacts. Both images are built from this context, so this
+# applies to the frontend's own build too: node_modules is installed inside the
+# image by `npm ci` and dist/ is produced there by `vite build`. Sending the
+# host's copies would mean tens of thousands of files over the wire, a cache
+# miss on every build, and — worse — a dist/ that might be older than the source
+# it was supposed to be built from.
 node_modules/
 **/node_modules/
 frontend/dist/
