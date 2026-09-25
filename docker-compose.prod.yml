@@ -1,0 +1,127 @@
+# Production stack for a small VPS (Ubuntu 24.04, 1.8 GB RAM + 2 GB swap).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# A standalone file, not an override on docker-compose.yml. An override merges
+# port lists rather than replacing them, so it cannot take a published port
+# away — and taking ports away is the main thing this file does. Two separate
+# files is the honest version: what you read here is what runs.
+#
+# See docs/deployment.md for the .env and the deploy steps.
+
+name: invoicing
+
+# ---------------------------------------------------------------------------
+# Log rotation
+# ---------------------------------------------------------------------------
+# Docker's json-file driver grows without bound by default: one chatty stack
+# trace loop is enough to fill a 25 GB VPS disk, and a full disk takes Postgres
+# down with it. 10 MB x 3 files per service caps the whole stack at 90 MB.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      # No defaults for any of these: a database that silently comes up with a
+      # guessable password is worse than one that refuses to start.
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No ports. Deliberately: a published port bypasses UFW entirely (Docker
+    # writes its own iptables rules into the DOCKER chain, which UFW never
+    # sees), so "5432:5432" here would put this database on the public internet
+    # while `ufw status` still swore only 22, 80 and 443 were open. The backend
+    # reaches it over the internal compose network, which is not published.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          # 384 MB. Postgres's own defaults are the floor here: shared_buffers
+          # is 128 MB, plus work_mem and WAL buffers per connection, plus the
+          # postmaster and one backend process per pooled connection. For a
+          # single-user invoicing app that is roomy; it is a ceiling against a
+          # runaway query, not a tuning target.
+          memory: 384M
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      # No default. The first deployment runs on plain http://<server-ip>, where
+      # this must be false or the browser never sends the login cookie back and
+      # signing in appears to do nothing. Once there is a certificate it becomes
+      # true. Neither value is a safe guess, so .env has to say which.
+      JWT_COOKIE_SECURE: ${JWT_COOKIE_SECURE:?set JWT_COOKIE_SECURE in .env (false while on plain http, true behind HTTPS)}
+    # No ports either. Locally the backend publishes 8080 so `npm run dev` can
+    # proxy to it; on a server there is no dev server, and nginx reaches it by
+    # service name over the compose network.
+    deploy:
+      resources:
+        limits:
+          # 768 MB, which is what makes -XX:MaxRAMPercentage=75 in the image
+          # mean something: without a limit the JVM sizes its heap against the
+          # host's 1.8 GB and helps itself to ~1.3 GB. With the limit the heap
+          # tops out near 576 MB and the remaining ~190 MB covers metaspace,
+          # thread stacks, code cache and the direct buffers PDF rendering
+          # uses.
+          memory: 768M
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      backend:
+        condition: service_healthy
+    # The only service that publishes anything: this is the front door, and 80
+    # is open in UFW. Everything else in this file is reachable only from the
+    # other containers.
+    ports:
+      - "80:8080"
+      # 443 once there is a certificate. Left commented rather than opened
+      # early: publishing a port nothing listens on just hands out connection
+      # refused. Turning it on is more than this line — nginx needs a
+      # `listen 8443 ssl` server block and the certificate mounted in — so see
+      # docs/deployment.md before uncommenting.
+      # - "443:8443"
+    deploy:
+      resources:
+        limits:
+          # 128 MB. nginx serving a few hundred kilobytes of static files needs
+          # a fraction of that; the margin is there because this container is
+          # the entrance, and an OOM kill here takes the whole site down while
+          # the app behind it is perfectly healthy.
+          memory: 128M
+
+# 384 + 768 + 128 = 1280 MB of the 1.8 GB, leaving roughly 500 MB for the
+# kernel, sshd, the Docker daemon itself and page cache. The 2 GB of swap is
+# the safety net for a build, not part of this budget.
+
+volumes:
+  pgdata:
